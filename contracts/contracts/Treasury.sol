@@ -25,21 +25,28 @@ contract Treasury is ITreasury, AccessControl, ReentrancyGuard {
     uint256 public totalAdRevenue;
     uint256 public totalDonations;
 
-    // Withdrawal limits
+    // Withdrawal limits (tokens)
     uint256 public dailyWithdrawalLimit;
     uint256 public lastWithdrawalDay;
     uint256 public withdrawnToday;
+
+    // Withdrawal limits (ETH)
+    uint256 public dailyETHWithdrawalLimit;
+    uint256 public lastETHWithdrawalDay;
+    uint256 public withdrawnETHToday;
 
     event TokensDeposited(address indexed from, uint256 amount, string source);
     event TokensWithdrawn(address indexed to, uint256 amount, string reason);
     event ETHWithdrawn(address indexed to, uint256 amount, string reason);
     event DailyLimitUpdated(uint256 oldLimit, uint256 newLimit);
+    event DailyETHLimitUpdated(uint256 oldLimit, uint256 newLimit);
 
     constructor(address _shareToken) {
         require(_shareToken != address(0), "Invalid token address");
 
         shareToken = IERC20(_shareToken);
         dailyWithdrawalLimit = 10_000 * 10**18; // 10,000 tokens per day default
+        dailyETHWithdrawalLimit = 10 ether; // 10 ETH per day default
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(GOVERNOR_ROLE, msg.sender);
@@ -133,6 +140,16 @@ contract Treasury is ITreasury, AccessControl, ReentrancyGuard {
         require(to != address(0), "Invalid recipient");
         require(address(this).balance >= amount, "Insufficient ETH balance");
 
+        // Check daily ETH limit
+        uint256 currentDay = block.timestamp / 1 days;
+        if (currentDay > lastETHWithdrawalDay) {
+            lastETHWithdrawalDay = currentDay;
+            withdrawnETHToday = 0;
+        }
+
+        require(withdrawnETHToday + amount <= dailyETHWithdrawalLimit, "Exceeds daily ETH limit");
+        withdrawnETHToday += amount;
+
         (bool success, ) = to.call{value: amount}("");
         require(success, "ETH transfer failed");
 
@@ -140,13 +157,23 @@ contract Treasury is ITreasury, AccessControl, ReentrancyGuard {
     }
 
     /**
-     * @notice Update daily withdrawal limit
+     * @notice Update daily withdrawal limit for tokens
      * @param newLimit New limit in tokens
      */
     function setDailyWithdrawalLimit(uint256 newLimit) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 oldLimit = dailyWithdrawalLimit;
         dailyWithdrawalLimit = newLimit;
         emit DailyLimitUpdated(oldLimit, newLimit);
+    }
+
+    /**
+     * @notice Update daily withdrawal limit for ETH
+     * @param newLimit New limit in wei
+     */
+    function setDailyETHWithdrawalLimit(uint256 newLimit) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        uint256 oldLimit = dailyETHWithdrawalLimit;
+        dailyETHWithdrawalLimit = newLimit;
+        emit DailyETHLimitUpdated(oldLimit, newLimit);
     }
 
     /**
@@ -166,7 +193,7 @@ contract Treasury is ITreasury, AccessControl, ReentrancyGuard {
     }
 
     /**
-     * @notice Get remaining daily withdrawal allowance
+     * @notice Get remaining daily withdrawal allowance for tokens
      * @return Remaining tokens that can be withdrawn today
      */
     function getRemainingDailyAllowance() external view returns (uint256) {
@@ -175,5 +202,17 @@ contract Treasury is ITreasury, AccessControl, ReentrancyGuard {
             return dailyWithdrawalLimit;
         }
         return dailyWithdrawalLimit - withdrawnToday;
+    }
+
+    /**
+     * @notice Get remaining daily withdrawal allowance for ETH
+     * @return Remaining ETH (in wei) that can be withdrawn today
+     */
+    function getRemainingDailyETHAllowance() external view returns (uint256) {
+        uint256 currentDay = block.timestamp / 1 days;
+        if (currentDay > lastETHWithdrawalDay) {
+            return dailyETHWithdrawalLimit;
+        }
+        return dailyETHWithdrawalLimit - withdrawnETHToday;
     }
 }

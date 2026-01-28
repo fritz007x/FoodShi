@@ -122,16 +122,11 @@ contract MedalNFT is ERC721, ERC721URIStorage, ERC721Enumerable, AccessControl, 
         // Verify donation count
         require(confirmedDonations >= requirements.minDonations, "Donation count not met");
 
-        // Burn tokens from user
-        shareToken.burnFrom(to, requirements.burnCost);
-
-        // Mint NFT
+        // EFFECTS: Update state BEFORE external calls (CEI pattern)
         _tokenIdCounter++;
         uint256 tokenId = _tokenIdCounter;
 
-        _safeMint(to, tokenId);
-
-        // Store medal data
+        // Store medal data before external calls
         medalData[tokenId] = MedalData({
             tier: tier,
             mintedAt: block.timestamp,
@@ -139,6 +134,13 @@ contract MedalNFT is ERC721, ERC721URIStorage, ERC721Enumerable, AccessControl, 
         });
 
         userMedals[to][tier] = tokenId;
+
+        // INTERACTIONS: External calls after state updates
+        // Burn tokens from user
+        shareToken.burnFrom(to, requirements.burnCost);
+
+        // Mint NFT (triggers onERC721Received callback)
+        _safeMint(to, tokenId);
 
         emit MedalMinted(to, tokenId, tier, requirements.burnCost);
     }
