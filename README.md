@@ -120,7 +120,7 @@ npm run backend:db:migrate
 cd contracts
 npm install
 npx hardhat compile
-npx hardhat run scripts/deploy.ts --network mumbai
+npx hardhat run scripts/deploy.ts --network amoy
 ```
 
 5. **Start development servers:**

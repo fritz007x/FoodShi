@@ -38,7 +38,7 @@ const MEDAL_NFT_ABI = [
 function getProvider(): ethers.JsonRpcProvider {
   const rpcUrl = process.env.NODE_ENV === 'production'
     ? process.env.POLYGON_RPC_URL
-    : process.env.MUMBAI_RPC_URL;
+    : process.env.AMOY_RPC_URL;
 
   return new ethers.JsonRpcProvider(rpcUrl);
 }
