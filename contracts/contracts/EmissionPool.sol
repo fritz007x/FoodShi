@@ -152,10 +152,11 @@ contract EmissionPool is AccessControl, ReentrancyGuard {
         dist.finalized = true;
         dist.totalDistributed = DAILY_EMISSION;
 
-        // Reset emission timer
-        shareToken.resetEmissionTimer();
-
+        // Emit event before external call (CEI pattern for events)
         emit DayFinalized(day, dist.totalPoints, dist.totalDistributed);
+
+        // Reset emission timer (external call last)
+        shareToken.resetEmissionTimer();
     }
 
     /**
@@ -170,6 +171,7 @@ contract EmissionPool is AccessControl, ReentrancyGuard {
         require(userPoints > 0, "No points for this day");
 
         DailyDistribution memory dist = dailyDistributions[day];
+        require(dist.totalPoints > 0, "No points recorded for this day");
 
         // Calculate user's share of daily emission
         // Formula: (userPoints / totalPoints) * DAILY_EMISSION * multiplier

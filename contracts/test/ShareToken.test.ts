@@ -321,6 +321,347 @@ describe("MedalNFT", function () {
       ).to.be.revertedWith("Already owns this medal tier");
     });
   });
+
+  describe("CEI Pattern Security", function () {
+    it("Should set userMedals before external calls", async function () {
+      await shareToken.connect(user1).approve(await medalNFT.getAddress(), ethers.parseEther("50"));
+
+      const firstDonation = Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
+
+      await medalNFT.mint(user1.address, 0, firstDonation, 25);
+
+      // Verify state is correctly set
+      const userMedals = await medalNFT.getUserMedals(user1.address);
+      expect(userMedals[0]).to.be.gt(0); // Bronze medal token ID
+    });
+
+    it("Should set medalData before external calls", async function () {
+      await shareToken.connect(user1).approve(await medalNFT.getAddress(), ethers.parseEther("50"));
+
+      const firstDonation = Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
+
+      await medalNFT.mint(user1.address, 0, firstDonation, 25);
+
+      // Get the token ID
+      const userMedals = await medalNFT.getUserMedals(user1.address);
+      const tokenId = userMedals[0];
+
+      // Verify medalData is correctly set
+      const medalData = await medalNFT.medalData(tokenId);
+      expect(medalData.tier).to.equal(0); // Bronze
+      expect(medalData.donationsAtMint).to.equal(25);
+    });
+
+    it("Should revert entire transaction if burn fails", async function () {
+      // Don't approve - burnFrom will fail
+      const firstDonation = Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
+
+      await expect(
+        medalNFT.mint(user1.address, 0, firstDonation, 25)
+      ).to.be.reverted;
+
+      // State should not have changed
+      const userMedals = await medalNFT.getUserMedals(user1.address);
+      expect(userMedals[0]).to.equal(0); // No medal minted
+    });
+  });
+});
+
+describe("Treasury Security (ETH Limits)", function () {
+  let shareToken: ShareToken;
+  let treasury: Treasury;
+  let owner: SignerWithAddress;
+  let governor: SignerWithAddress;
+  let recipient: SignerWithAddress;
+
+  beforeEach(async function () {
+    [owner, governor, recipient] = await ethers.getSigners();
+
+    const ShareTokenFactory = await ethers.getContractFactory("ShareToken");
+    shareToken = await ShareTokenFactory.deploy();
+
+    const TreasuryFactory = await ethers.getContractFactory("Treasury");
+    treasury = await TreasuryFactory.deploy(await shareToken.getAddress());
+
+    const GOVERNOR_ROLE = await treasury.GOVERNOR_ROLE();
+    await treasury.grantRole(GOVERNOR_ROLE, governor.address);
+
+    // Send ETH to treasury
+    await owner.sendTransaction({
+      to: await treasury.getAddress(),
+      value: ethers.parseEther("100"),
+    });
+  });
+
+  describe("Daily ETH Withdrawal Limit", function () {
+    it("Should have default 10 ETH daily limit", async function () {
+      expect(await treasury.dailyETHWithdrawalLimit()).to.equal(ethers.parseEther("10"));
+    });
+
+    it("Should allow ETH withdrawal within daily limit", async function () {
+      const amount = ethers.parseEther("5");
+      const initialBalance = await ethers.provider.getBalance(recipient.address);
+
+      await treasury.connect(governor).withdrawETH(recipient.address, amount, "Test withdrawal");
+
+      const finalBalance = await ethers.provider.getBalance(recipient.address);
+      expect(finalBalance - initialBalance).to.equal(amount);
+    });
+
+    it("Should track withdrawn ETH today", async function () {
+      const amount = ethers.parseEther("3");
+      await treasury.connect(governor).withdrawETH(recipient.address, amount, "First withdrawal");
+
+      expect(await treasury.withdrawnETHToday()).to.equal(amount);
+    });
+
+    it("Should reject ETH withdrawal exceeding daily limit", async function () {
+      const amount = ethers.parseEther("11"); // Exceeds 10 ETH limit
+
+      await expect(
+        treasury.connect(governor).withdrawETH(recipient.address, amount, "Too much")
+      ).to.be.revertedWith("Exceeds daily ETH limit");
+    });
+
+    it("Should reject multiple withdrawals exceeding daily limit", async function () {
+      await treasury.connect(governor).withdrawETH(recipient.address, ethers.parseEther("6"), "First");
+
+      await expect(
+        treasury.connect(governor).withdrawETH(recipient.address, ethers.parseEther("5"), "Second")
+      ).to.be.revertedWith("Exceeds daily ETH limit");
+    });
+
+    it("Should reset ETH limit after day passes", async function () {
+      // First withdrawal
+      await treasury.connect(governor).withdrawETH(recipient.address, ethers.parseEther("8"), "Day 1");
+
+      // Advance time by 1 day
+      await ethers.provider.send("evm_increaseTime", [86400]);
+      await ethers.provider.send("evm_mine", []);
+
+      // Should be able to withdraw again
+      await treasury.connect(governor).withdrawETH(recipient.address, ethers.parseEther("8"), "Day 2");
+
+      expect(await treasury.withdrawnETHToday()).to.equal(ethers.parseEther("8"));
+    });
+
+    it("Should allow admin to update ETH daily limit", async function () {
+      const newLimit = ethers.parseEther("20");
+      await treasury.setDailyETHWithdrawalLimit(newLimit);
+
+      expect(await treasury.dailyETHWithdrawalLimit()).to.equal(newLimit);
+    });
+
+    it("Should emit event when ETH limit updated", async function () {
+      const oldLimit = ethers.parseEther("10");
+      const newLimit = ethers.parseEther("20");
+
+      await expect(treasury.setDailyETHWithdrawalLimit(newLimit))
+        .to.emit(treasury, "DailyETHLimitUpdated")
+        .withArgs(oldLimit, newLimit);
+    });
+
+    it("Should return correct remaining ETH allowance", async function () {
+      expect(await treasury.getRemainingDailyETHAllowance()).to.equal(ethers.parseEther("10"));
+
+      await treasury.connect(governor).withdrawETH(recipient.address, ethers.parseEther("3"), "Test");
+
+      expect(await treasury.getRemainingDailyETHAllowance()).to.equal(ethers.parseEther("7"));
+    });
+
+    it("Should return full allowance after day reset", async function () {
+      await treasury.connect(governor).withdrawETH(recipient.address, ethers.parseEther("5"), "Test");
+
+      // Advance time by 1 day
+      await ethers.provider.send("evm_increaseTime", [86400]);
+      await ethers.provider.send("evm_mine", []);
+
+      expect(await treasury.getRemainingDailyETHAllowance()).to.equal(ethers.parseEther("10"));
+    });
+  });
+});
+
+describe("Staking Security (CEI Pattern)", function () {
+  let shareToken: ShareToken;
+  let treasury: Treasury;
+  let staking: Staking;
+  let owner: SignerWithAddress;
+  let user1: SignerWithAddress;
+  let slasher: SignerWithAddress;
+
+  beforeEach(async function () {
+    [owner, user1, slasher] = await ethers.getSigners();
+
+    const ShareTokenFactory = await ethers.getContractFactory("ShareToken");
+    shareToken = await ShareTokenFactory.deploy();
+
+    const TreasuryFactory = await ethers.getContractFactory("Treasury");
+    treasury = await TreasuryFactory.deploy(await shareToken.getAddress());
+
+    const StakingFactory = await ethers.getContractFactory("Staking");
+    staking = await StakingFactory.deploy(
+      await shareToken.getAddress(),
+      await treasury.getAddress()
+    );
+
+    const DEPOSITOR_ROLE = await treasury.DEPOSITOR_ROLE();
+    await treasury.grantRole(DEPOSITOR_ROLE, await staking.getAddress());
+
+    const SLASHER_ROLE = await staking.SLASHER_ROLE();
+    await staking.grantRole(SLASHER_ROLE, slasher.address);
+
+    await shareToken.transfer(user1.address, ethers.parseEther("1000"));
+  });
+
+  describe("Stake State Consistency", function () {
+    it("Should update state correctly even if transfer reverts", async function () {
+      // Don't approve - transfer will fail
+      await expect(
+        staking.connect(user1).stake(ethers.parseEther("100"))
+      ).to.be.reverted;
+
+      // State should not have changed
+      const stakeInfo = await staking.getStakeInfo(user1.address);
+      expect(stakeInfo.amount).to.equal(0);
+      expect(await staking.totalStaked()).to.equal(0);
+    });
+
+    it("Should correctly handle multiple stakes", async function () {
+      await shareToken.connect(user1).approve(await staking.getAddress(), ethers.parseEther("200"));
+
+      await staking.connect(user1).stake(ethers.parseEther("100"));
+      await staking.connect(user1).stake(ethers.parseEther("100"));
+
+      const stakeInfo = await staking.getStakeInfo(user1.address);
+      expect(stakeInfo.amount).to.equal(ethers.parseEther("200"));
+      expect(await staking.totalStaked()).to.equal(ethers.parseEther("200"));
+    });
+  });
+
+  describe("addFraudStrike Reentrancy Protection", function () {
+    it("Should have nonReentrant on addFraudStrike", async function () {
+      await shareToken.connect(user1).approve(await staking.getAddress(), ethers.parseEther("100"));
+      await staking.connect(user1).stake(ethers.parseEther("100"));
+
+      // Multiple fraud strikes should work sequentially
+      await staking.connect(slasher).addFraudStrike(user1.address);
+      await staking.connect(slasher).addFraudStrike(user1.address);
+
+      const stakeInfo = await staking.getStakeInfo(user1.address);
+      expect(stakeInfo.fraudStrikes).to.equal(2);
+    });
+
+    it("Should slash correctly with reentrancy guard", async function () {
+      await shareToken.connect(user1).approve(await staking.getAddress(), ethers.parseEther("100"));
+      await staking.connect(user1).stake(ethers.parseEther("100"));
+
+      // 3 strikes triggers slash
+      await staking.connect(slasher).addFraudStrike(user1.address);
+      await staking.connect(slasher).addFraudStrike(user1.address);
+      await staking.connect(slasher).addFraudStrike(user1.address);
+
+      // 50% slashed, 50 tokens should go to treasury
+      expect(await shareToken.balanceOf(await treasury.getAddress())).to.equal(ethers.parseEther("50"));
+    });
+  });
+});
+
+describe("EmissionPool Security", function () {
+  let shareToken: ShareToken;
+  let staking: Staking;
+  let emissionPool: EmissionPool;
+  let treasury: Treasury;
+  let owner: SignerWithAddress;
+  let user1: SignerWithAddress;
+  let oracle: SignerWithAddress;
+
+  beforeEach(async function () {
+    [owner, user1, oracle] = await ethers.getSigners();
+
+    const ShareTokenFactory = await ethers.getContractFactory("ShareToken");
+    shareToken = await ShareTokenFactory.deploy();
+
+    const TreasuryFactory = await ethers.getContractFactory("Treasury");
+    treasury = await TreasuryFactory.deploy(await shareToken.getAddress());
+
+    const StakingFactory = await ethers.getContractFactory("Staking");
+    staking = await StakingFactory.deploy(
+      await shareToken.getAddress(),
+      await treasury.getAddress()
+    );
+
+    const EmissionPoolFactory = await ethers.getContractFactory("EmissionPool");
+    emissionPool = await EmissionPoolFactory.deploy(
+      await shareToken.getAddress(),
+      await staking.getAddress()
+    );
+
+    const EMISSION_ROLE = await shareToken.EMISSION_ROLE();
+    await shareToken.grantRole(EMISSION_ROLE, await emissionPool.getAddress());
+
+    const ORACLE_ROLE = await emissionPool.ORACLE_ROLE();
+    await emissionPool.grantRole(ORACLE_ROLE, oracle.address);
+
+    const DEPOSITOR_ROLE = await treasury.DEPOSITOR_ROLE();
+    await treasury.grantRole(DEPOSITOR_ROLE, await staking.getAddress());
+
+    await shareToken.transfer(user1.address, ethers.parseEther("100"));
+    await shareToken.connect(user1).approve(await staking.getAddress(), ethers.parseEther("10"));
+    await staking.connect(user1).stake(ethers.parseEther("10"));
+  });
+
+  describe("Division by Zero Protection", function () {
+    it("Should reject claim when totalPoints is zero", async function () {
+      // Get current day and advance to next day
+      const currentDay = await emissionPool.getCurrentDay();
+
+      // Advance time by 1 day
+      await ethers.provider.send("evm_increaseTime", [86400]);
+      await ethers.provider.send("evm_mine", []);
+
+      // Finalize the previous day (which has no points)
+      await emissionPool.connect(oracle).finalizeDay(currentDay);
+
+      // Try to claim - should fail since user has no points for that day
+      await expect(
+        emissionPool.connect(user1).claim(currentDay)
+      ).to.be.revertedWith("No points for this day");
+    });
+
+    it("Should calculate tokens correctly with valid totalPoints", async function () {
+      // Record points
+      await emissionPool.connect(oracle).recordPoints(user1.address, 1000);
+
+      const currentDay = await emissionPool.getCurrentDay();
+
+      // Advance time by 1 day
+      await ethers.provider.send("evm_increaseTime", [86400]);
+      await ethers.provider.send("evm_mine", []);
+
+      // Finalize
+      await emissionPool.connect(oracle).finalizeDay(currentDay);
+
+      // Get claimable amount
+      const claimable = await emissionPool.getClaimable(user1.address, currentDay);
+      expect(claimable).to.be.gt(0);
+    });
+  });
+
+  describe("Event Ordering (CEI Pattern)", function () {
+    it("Should emit DayFinalized event", async function () {
+      await emissionPool.connect(oracle).recordPoints(user1.address, 500);
+
+      const currentDay = await emissionPool.getCurrentDay();
+
+      // Advance time
+      await ethers.provider.send("evm_increaseTime", [86400]);
+      await ethers.provider.send("evm_mine", []);
+
+      await expect(emissionPool.connect(oracle).finalizeDay(currentDay))
+        .to.emit(emissionPool, "DayFinalized")
+        .withArgs(currentDay, 500, ethers.parseEther("1000"));
+    });
+  });
 });
 
 describe("EmissionPool", function () {

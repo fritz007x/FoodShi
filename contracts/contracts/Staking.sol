@@ -66,11 +66,13 @@ contract Staking is IStaking, AccessControl, ReentrancyGuard {
 
         StakeInfo storage stakeInfo = stakes[msg.sender];
 
-        shareToken.safeTransferFrom(msg.sender, address(this), amount);
-
+        // EFFECTS: Update state BEFORE external calls (CEI pattern)
         stakeInfo.amount += amount;
         stakeInfo.stakedAt = block.timestamp;
         totalStaked += amount;
+
+        // INTERACTIONS: External call after state updates
+        shareToken.safeTransferFrom(msg.sender, address(this), amount);
 
         emit Staked(msg.sender, amount, stakeInfo.isSuperDonor);
     }
@@ -121,7 +123,7 @@ contract Staking is IStaking, AccessControl, ReentrancyGuard {
      * @notice Add fraud strike to user (called by backend oracle)
      * @param user User address
      */
-    function addFraudStrike(address user) external onlyRole(SLASHER_ROLE) {
+    function addFraudStrike(address user) external onlyRole(SLASHER_ROLE) nonReentrant {
         StakeInfo storage stakeInfo = stakes[user];
         stakeInfo.fraudStrikes++;
 
