@@ -95,7 +95,6 @@ foodshi/
 ### Prerequisites
 - Node.js 18+
 - PostgreSQL
-- Redis (optional, for caching)
 
 ### Installation
 
