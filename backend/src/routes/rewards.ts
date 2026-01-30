@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { getKarmaBalance, deductKarmaForExchange, getKarmaHistory } from '../services/karma';
 import * as blockchain from '../services/blockchain';
+import * as pinata from '../services/pinata';
 
 const router = Router();
 
@@ -232,7 +233,7 @@ router.post('/medals/mint', authenticate, async (req, res, next) => {
     }
 
     // Mint the medal
-    const txHash = await blockchain.mintMedal(
+    const { txHash, tokenId } = await blockchain.mintMedal(
       req.user!.walletAddress,
       tierIndex,
       firstDonationTimestamp,
@@ -245,13 +246,54 @@ router.post('/medals/mint', authenticate, async (req, res, next) => {
       [req.user!.id]
     );
 
+    // Upload metadata to IPFS and set on-chain (async, don't block response)
+    const mintedAt = Math.floor(Date.now() / 1000);
+    uploadMedalMetadataAsync(
+      tokenId,
+      tierIndex,
+      mintedAt,
+      progress.total_confirmed_donations,
+      req.user!.walletAddress
+    );
+
     res.json({
       message: `${tier.charAt(0).toUpperCase() + tier.slice(1)} medal minted successfully!`,
       txHash,
+      tokenId,
     });
   } catch (error) {
     next(error);
   }
 });
+
+// Helper to upload metadata to IPFS and set on-chain
+async function uploadMedalMetadataAsync(
+  tokenId: number,
+  tierIndex: number,
+  mintedAt: number,
+  donationsAtMint: number,
+  ownerAddress: string
+): Promise<void> {
+  try {
+    // Upload metadata to IPFS via Pinata
+    const metadataCID = await pinata.uploadMedalMetadata(
+      tokenId,
+      tierIndex,
+      mintedAt,
+      donationsAtMint,
+      ownerAddress
+    );
+
+    const metadataURI = `ipfs://${metadataCID}`;
+    console.log(`Medal metadata uploaded: ${metadataURI}`);
+
+    // Set the metadata URI on-chain
+    const txHash = await blockchain.setTokenMetadataURI(tokenId, metadataURI);
+    console.log(`Medal metadata URI set on-chain: ${txHash}`);
+  } catch (error) {
+    console.error('Failed to upload medal metadata or set URI:', error);
+    // Don't throw - minting succeeded, metadata upload is secondary
+  }
+}
 
 export default router;

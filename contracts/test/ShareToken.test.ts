@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { ShareToken, Staking, Treasury, EmissionPool } from "../typechain-types";
+import { ShareToken, Staking, Treasury, EmissionPool, MedalNFT } from "../typechain-types";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 
 describe("ShareToken", function () {
@@ -246,7 +246,7 @@ describe("Staking", function () {
 
 describe("MedalNFT", function () {
   let shareToken: ShareToken;
-  let medalNFT: any;
+  let medalNFT: MedalNFT;
   let owner: SignerWithAddress;
   let user1: SignerWithAddress;
 
@@ -319,6 +319,126 @@ describe("MedalNFT", function () {
       await expect(
         medalNFT.mint(user1.address, 0, firstDonation, 30)
       ).to.be.revertedWith("Already owns this medal tier");
+    });
+  });
+
+  describe("Token URI and Pinata Integration", function () {
+    it("Should return constructed URI when no individual URI is set", async function () {
+      await shareToken.connect(user1).approve(await medalNFT.getAddress(), ethers.parseEther("50"));
+      const firstDonation = Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
+
+      await medalNFT.mint(user1.address, 0, firstDonation, 25);
+
+      const userMedals = await medalNFT.getUserMedals(user1.address);
+      const tokenId = userMedals[0];
+
+      // Should return constructed URI: baseURI + tierName + "/" + tokenId + ".json"
+      const tokenURI = await medalNFT.tokenURI(tokenId);
+      expect(tokenURI).to.equal(`ipfs://Bronze/${tokenId}.json`);
+    });
+
+    it("Should allow minter to set token metadata URI", async function () {
+      await shareToken.connect(user1).approve(await medalNFT.getAddress(), ethers.parseEther("50"));
+      const firstDonation = Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
+
+      await medalNFT.mint(user1.address, 0, firstDonation, 25);
+
+      const userMedals = await medalNFT.getUserMedals(user1.address);
+      const tokenId = userMedals[0];
+
+      const ipfsURI = "ipfs://QmTest1234567890abcdef";
+      await medalNFT.setTokenMetadataURI(tokenId, ipfsURI);
+
+      // tokenURI should now return the individually set URI
+      expect(await medalNFT.tokenURI(tokenId)).to.equal(ipfsURI);
+    });
+
+    it("Should return stored URI via getStoredTokenURI", async function () {
+      await shareToken.connect(user1).approve(await medalNFT.getAddress(), ethers.parseEther("50"));
+      const firstDonation = Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
+
+      await medalNFT.mint(user1.address, 0, firstDonation, 25);
+
+      const userMedals = await medalNFT.getUserMedals(user1.address);
+      const tokenId = userMedals[0];
+
+      // Initially empty
+      expect(await medalNFT.getStoredTokenURI(tokenId)).to.equal("");
+
+      const ipfsURI = "ipfs://QmNewMetadata123";
+      await medalNFT.setTokenMetadataURI(tokenId, ipfsURI);
+
+      expect(await medalNFT.getStoredTokenURI(tokenId)).to.equal(ipfsURI);
+    });
+
+    it("Should emit TokenMetadataURISet event when setting URI", async function () {
+      await shareToken.connect(user1).approve(await medalNFT.getAddress(), ethers.parseEther("50"));
+      const firstDonation = Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
+
+      await medalNFT.mint(user1.address, 0, firstDonation, 25);
+
+      const userMedals = await medalNFT.getUserMedals(user1.address);
+      const tokenId = userMedals[0];
+
+      const ipfsURI = "ipfs://QmEventTest456";
+
+      await expect(medalNFT.setTokenMetadataURI(tokenId, ipfsURI))
+        .to.emit(medalNFT, "TokenMetadataURISet")
+        .withArgs(tokenId, ipfsURI);
+    });
+
+    it("Should reject setTokenMetadataURI for non-existent token", async function () {
+      await expect(
+        medalNFT.setTokenMetadataURI(999, "ipfs://QmInvalid")
+      ).to.be.reverted;
+    });
+
+    it("Should reject setTokenMetadataURI from non-minter", async function () {
+      await shareToken.connect(user1).approve(await medalNFT.getAddress(), ethers.parseEther("50"));
+      const firstDonation = Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
+
+      await medalNFT.mint(user1.address, 0, firstDonation, 25);
+
+      const userMedals = await medalNFT.getUserMedals(user1.address);
+      const tokenId = userMedals[0];
+
+      // user1 doesn't have MINTER_ROLE
+      await expect(
+        medalNFT.connect(user1).setTokenMetadataURI(tokenId, "ipfs://QmUnauthorized")
+      ).to.be.reverted;
+    });
+
+    it("Should allow updating token metadata URI", async function () {
+      await shareToken.connect(user1).approve(await medalNFT.getAddress(), ethers.parseEther("50"));
+      const firstDonation = Math.floor(Date.now() / 1000) - 31 * 24 * 60 * 60;
+
+      await medalNFT.mint(user1.address, 0, firstDonation, 25);
+
+      const userMedals = await medalNFT.getUserMedals(user1.address);
+      const tokenId = userMedals[0];
+
+      await medalNFT.setTokenMetadataURI(tokenId, "ipfs://QmFirst");
+      expect(await medalNFT.tokenURI(tokenId)).to.equal("ipfs://QmFirst");
+
+      await medalNFT.setTokenMetadataURI(tokenId, "ipfs://QmSecond");
+      expect(await medalNFT.tokenURI(tokenId)).to.equal("ipfs://QmSecond");
+    });
+
+    it("Should return correct URI for different medal tiers", async function () {
+      // Mint bronze (tier 0) - costs 50 SHARE
+      // Mint silver (tier 1) - costs 150 SHARE
+      // Total: 200 SHARE needed
+      await shareToken.connect(user1).approve(await medalNFT.getAddress(), ethers.parseEther("200"));
+      const firstDonation = Math.floor(Date.now() / 1000) - 91 * 24 * 60 * 60; // 91 days ago
+
+      await medalNFT.mint(user1.address, 0, firstDonation, 25); // Bronze
+      await medalNFT.mint(user1.address, 1, firstDonation, 75); // Silver
+
+      const userMedals = await medalNFT.getUserMedals(user1.address);
+
+      // Check constructed URIs before setting individual URIs
+      expect(await medalNFT.tokenURI(userMedals[0])).to.equal(`ipfs://Bronze/${userMedals[0]}.json`);
+      expect(await medalNFT.tokenURI(userMedals[1])).to.equal(`ipfs://Silver/${userMedals[1]}.json`);
     });
   });
 

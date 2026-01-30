@@ -54,8 +54,12 @@ contract MedalNFT is ERC721, ERC721URIStorage, ERC721Enumerable, AccessControl, 
     // Token counter
     uint256 private _tokenIdCounter;
 
+    // Token ID to metadata URI (set after minting via Pinata/IPFS)
+    mapping(uint256 => string) private _tokenMetadataURIs;
+
     event MedalMinted(address indexed user, uint256 indexed tokenId, MedalTier tier, uint256 burnAmount);
     event BaseURIUpdated(string oldURI, string newURI);
+    event TokenMetadataURISet(uint256 indexed tokenId, string uri);
 
     constructor(address _shareToken) ERC721("FOODSHI Medal", "FSHMEDAL") {
         require(_shareToken != address(0), "Invalid token address");
@@ -156,6 +160,26 @@ contract MedalNFT is ERC721, ERC721URIStorage, ERC721Enumerable, AccessControl, 
     }
 
     /**
+     * @notice Set metadata URI for a specific token (after uploading to IPFS/Pinata)
+     * @param tokenId Token ID
+     * @param uri Full IPFS URI for metadata (e.g., ipfs://QmXXX)
+     */
+    function setTokenMetadataURI(uint256 tokenId, string calldata uri) external onlyRole(MINTER_ROLE) {
+        _requireOwned(tokenId);
+        _tokenMetadataURIs[tokenId] = uri;
+        emit TokenMetadataURISet(tokenId, uri);
+    }
+
+    /**
+     * @notice Get the stored metadata URI for a token (if set)
+     * @param tokenId Token ID
+     * @return uri The stored URI, or empty string if not set
+     */
+    function getStoredTokenURI(uint256 tokenId) external view returns (string memory) {
+        return _tokenMetadataURIs[tokenId];
+    }
+
+    /**
      * @notice Update medal requirements (admin only)
      * @param tier Medal tier to update
      * @param minDays Minimum days requirement
@@ -253,6 +277,13 @@ contract MedalNFT is ERC721, ERC721URIStorage, ERC721Enumerable, AccessControl, 
     {
         _requireOwned(tokenId);
 
+        // Check for individually set metadata URI first (from Pinata upload)
+        string memory individualURI = _tokenMetadataURIs[tokenId];
+        if (bytes(individualURI).length > 0) {
+            return individualURI;
+        }
+
+        // Fall back to constructed URI based on tier
         MedalData memory data = medalData[tokenId];
         string memory tierName = getTierName(data.tier);
 

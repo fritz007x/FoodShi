@@ -32,6 +32,9 @@ const MEDAL_NFT_ABI = [
   'function canMintMedal(address user, uint8 tier, uint256 firstDonationTimestamp, uint256 confirmedDonations) view returns (bool canMint, string reason)',
   'function getUserMedals(address user) view returns (uint256[4])',
   'function medalRequirements(uint8) view returns (uint256 minDays, uint256 minDonations, uint256 burnCost)',
+  'function setTokenMetadataURI(uint256 tokenId, string uri)',
+  'function getStoredTokenURI(uint256 tokenId) view returns (string)',
+  'event MedalMinted(address indexed user, uint256 indexed tokenId, uint8 tier, uint256 burnAmount)',
 ];
 
 // Get provider
@@ -184,15 +187,54 @@ export async function mintMedal(
   tier: number,
   firstDonationTimestamp: number,
   confirmedDonations: number
-): Promise<string> {
+): Promise<{ txHash: string; tokenId: number }> {
   const signer = getSigner();
   const addresses = getAddresses();
   const contract = new ethers.Contract(addresses.medalNFT, MEDAL_NFT_ABI, signer);
 
   const tx = await contract.mint(to, tier, firstDonationTimestamp, confirmedDonations);
+  const receipt = await tx.wait();
+
+  // Parse the MedalMinted event to get the token ID
+  let tokenId = 0;
+  for (const log of receipt.logs) {
+    try {
+      const parsed = contract.interface.parseLog({
+        topics: log.topics as string[],
+        data: log.data,
+      });
+      if (parsed && parsed.name === 'MedalMinted') {
+        tokenId = Number(parsed.args.tokenId);
+        break;
+      }
+    } catch {
+      // Not a matching event, continue
+    }
+  }
+
+  return { txHash: tx.hash, tokenId };
+}
+
+export async function setTokenMetadataURI(
+  tokenId: number,
+  uri: string
+): Promise<string> {
+  const signer = getSigner();
+  const addresses = getAddresses();
+  const contract = new ethers.Contract(addresses.medalNFT, MEDAL_NFT_ABI, signer);
+
+  const tx = await contract.setTokenMetadataURI(tokenId, uri);
   await tx.wait();
 
   return tx.hash;
+}
+
+export async function getStoredTokenURI(tokenId: number): Promise<string> {
+  const provider = getProvider();
+  const addresses = getAddresses();
+  const contract = new ethers.Contract(addresses.medalNFT, MEDAL_NFT_ABI, provider);
+
+  return contract.getStoredTokenURI(tokenId);
 }
 
 export async function canMintMedal(
