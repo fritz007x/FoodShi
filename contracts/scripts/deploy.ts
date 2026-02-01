@@ -48,10 +48,7 @@ async function main() {
   // 6. Configure contracts
   console.log("\n6. Configuring contracts...");
 
-  // Set staking contract in ShareToken
-  await shareToken.setStakingContract(stakingAddress);
-  console.log("- Set staking contract in ShareToken");
-
+  
   // Grant EMISSION_ROLE to EmissionPool
   const EMISSION_ROLE = await shareToken.EMISSION_ROLE();
   await shareToken.grantRole(EMISSION_ROLE, emissionPoolAddress);
