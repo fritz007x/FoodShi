@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import dotenv from 'dotenv';
 
-dotenv.config({ path: '../../.env' });
+dotenv.config({ path: '../.env' });
 
 // Contract ABIs (simplified for key functions)
 const SHARE_TOKEN_ABI = [
