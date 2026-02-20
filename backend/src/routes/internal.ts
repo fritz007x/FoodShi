@@ -1,0 +1,63 @@
+import { Router, Request, Response, NextFunction } from 'express';
+import { query } from '../db/index';
+
+const router = Router();
+
+// Bearer token auth middleware for internal routes
+function requireInternalKey(req: Request, res: Response, next: NextFunction): void {
+  const apiKey = process.env.INTERNAL_API_KEY;
+  const authHeader = req.headers.authorization;
+
+  if (!apiKey) {
+    res.status(500).json({ error: 'Internal API key not configured' });
+    return;
+  }
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Missing Authorization header' });
+    return;
+  }
+
+  const token = authHeader.slice('Bearer '.length);
+  if (token !== apiKey) {
+    res.status(401).json({ error: 'Invalid API key' });
+    return;
+  }
+
+  next();
+}
+
+router.use(requireInternalKey);
+
+/**
+ * GET /api/internal/daily-points?date=YYYY-MM-DD
+ * Returns unsynced daily points for users with a wallet address.
+ * Called by the Chainlink CRE workflow DON nodes.
+ */
+router.get('/daily-points', async (req: Request, res: Response): Promise<void> => {
+  const { date } = req.query;
+
+  if (!date || typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    res.status(400).json({ error: 'Query param "date" must be in YYYY-MM-DD format' });
+    return;
+  }
+
+  const rows = await query<{ points: number; wallet_address: string }>(
+    `SELECT dp.points, u.wallet_address
+     FROM daily_points dp
+     JOIN users u ON dp.user_id = u.id
+     WHERE dp.day_date = $1
+       AND dp.synced_to_chain = false
+       AND u.wallet_address IS NOT NULL`,
+    [date]
+  );
+
+  const users = rows.map((row) => ({
+    walletAddress: row.wallet_address,
+    points: row.points,
+  }));
+
+  res.json({ date, users });
+});
+
+export default router;

@@ -45,8 +45,19 @@ async function main() {
   const emissionPoolAddress = await emissionPool.getAddress();
   console.log("EmissionPool deployed to:", emissionPoolAddress);
 
-  // 6. Configure contracts
-  console.log("\n6. Configuring contracts...");
+  // 6. Deploy EmissionPoolReceiver
+  console.log("\n6. Deploying EmissionPoolReceiver...");
+  const EmissionPoolReceiver = await ethers.getContractFactory("EmissionPoolReceiver");
+  const receiver = await EmissionPoolReceiver.deploy(
+    emissionPoolAddress,
+    process.env.CRE_FORWARDER_ADDRESS!
+  );
+  await receiver.waitForDeployment();
+  const receiverAddress = await receiver.getAddress();
+  console.log("EmissionPoolReceiver deployed to:", receiverAddress);
+
+  // 7. Configure contracts
+  console.log("\n7. Configuring contracts...");
 
   // Grant EMISSION_ROLE to EmissionPool
   const EMISSION_ROLE = await shareToken.EMISSION_ROLE();
@@ -62,6 +73,11 @@ async function main() {
   const MINTER_ROLE = await medalNFT.MINTER_ROLE();
   console.log("- MINTER_ROLE already granted to deployer");
 
+  // Grant ORACLE_ROLE to EmissionPoolReceiver
+  const ORACLE_ROLE = await emissionPool.ORACLE_ROLE();
+  await emissionPool.grantRole(ORACLE_ROLE, receiverAddress);
+  console.log("- Granted ORACLE_ROLE to EmissionPoolReceiver");
+
   console.log("\n=== Deployment Complete ===");
   console.log({
     ShareToken: shareTokenAddress,
@@ -69,6 +85,7 @@ async function main() {
     Staking: stakingAddress,
     MedalNFT: medalNFTAddress,
     EmissionPool: emissionPoolAddress,
+    EmissionPoolReceiver: receiverAddress,
   });
 
   // Write deployment addresses to file
@@ -83,6 +100,7 @@ async function main() {
       Staking: stakingAddress,
       MedalNFT: medalNFTAddress,
       EmissionPool: emissionPoolAddress,
+      EmissionPoolReceiver: receiverAddress,
     },
     deployedAt: new Date().toISOString(),
   };

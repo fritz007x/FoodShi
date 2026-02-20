@@ -12,6 +12,7 @@ import reportRoutes from './routes/reports';
 import rewardRoutes from './routes/rewards';
 import invitationRoutes from './routes/invitations';
 import contributionRoutes from './routes/contributions';
+import internalRoutes from './routes/internal';
 import { errorHandler } from './middleware/errorHandler';
 import { initScheduler } from './jobs/scheduler';
 
@@ -44,6 +45,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/rewards', rewardRoutes);
 app.use('/api/invitations', invitationRoutes);
 app.use('/api/contributions', contributionRoutes);
+app.use('/api/internal', internalRoutes);
 
 // Error handling
 app.use(errorHandler);

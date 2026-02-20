@@ -7,6 +7,7 @@ const ADDRESSES = {
   Treasury: "0x8E8d0c5d32B4A01C5a6008e5A9382026aA67d418",
   MedalNFT: "0x823889474A37ef9860245c4DF6035d9163f4AC5b",
   EmissionPool: "0xD2Dc2d6854c9F83dcE4EE08632400CE3152681dd",
+  EmissionPoolReceiver: "", // TODO: fill in after deploying EmissionPoolReceiver
 };
 
 async function main() {
@@ -18,6 +19,7 @@ async function main() {
   const shareToken = await ethers.getContractAt("ShareToken", ADDRESSES.ShareToken);
   const treasury = await ethers.getContractAt("Treasury", ADDRESSES.Treasury);
   const medalNFT = await ethers.getContractAt("MedalNFT", ADDRESSES.MedalNFT);
+  const emissionPool = await ethers.getContractAt("EmissionPool", ADDRESSES.EmissionPool);
 
   console.log("\n=== Configuring Roles ===\n");
 
@@ -55,6 +57,23 @@ async function main() {
     console.log("   - MINTER_ROLE already granted to deployer");
   } else {
     console.log("   - WARNING: Deployer does not have MINTER_ROLE");
+  }
+
+  // Grant ORACLE_ROLE to EmissionPoolReceiver
+  console.log("\n4. Granting ORACLE_ROLE to EmissionPoolReceiver...");
+  if (!ADDRESSES.EmissionPoolReceiver) {
+    console.log("   - SKIPPED: EmissionPoolReceiver address not set in ADDRESSES");
+  } else {
+    const ORACLE_ROLE = await emissionPool.ORACLE_ROLE();
+    const hasOracleRole = await emissionPool.hasRole(ORACLE_ROLE, ADDRESSES.EmissionPoolReceiver);
+    if (hasOracleRole) {
+      console.log("   - ORACLE_ROLE already granted to EmissionPoolReceiver");
+    } else {
+      const tx4 = await emissionPool.grantRole(ORACLE_ROLE, ADDRESSES.EmissionPoolReceiver);
+      await tx4.wait();
+      console.log("   - Granted ORACLE_ROLE to EmissionPoolReceiver");
+      console.log("   - Transaction hash:", tx4.hash);
+    }
   }
 
   console.log("\n=== Configuration Complete ===");

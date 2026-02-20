@@ -1,0 +1,6 @@
+name: daily-emission
+schedule: "0 0 * * *"   # midnight UTC
+targets:
+  amoy:
+    rpc: ${RPC_URL}
+    receiver: ${RECEIVER_CONTRACT_ADDRESS}

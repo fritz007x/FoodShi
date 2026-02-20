@@ -28,3 +28,12 @@ interface ITreasury {
     function receiveSlashed(uint256 amount) external;
     function depositSlashed(uint256 amount) external;
 }
+
+/**
+ * @title IEmissionPool
+ * @notice Interface for EmissionPool contract (used by EmissionPoolReceiver)
+ */
+interface IEmissionPool {
+    function recordPointsBatch(address[] calldata users, uint256[] calldata points) external;
+    function finalizeDay(uint256 day) external;
+}
