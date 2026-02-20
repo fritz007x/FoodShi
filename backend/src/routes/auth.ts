@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { query, queryOne } from '../db/index';
 import { verifyJWT, signToken } from '../middleware/auth';
+import { firebaseAuth } from '../lib/firebase';
 
 const router = Router();
 
@@ -80,6 +81,67 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
   if (!valid) {
     res.status(401).json({ error: 'Invalid credentials' });
     return;
+  }
+
+  const token = signToken({ userId: user.id, email: user.email });
+  res.json({ token, user: { id: user.id, email: user.email } });
+});
+
+/**
+ * POST /api/auth/firebase
+ * Verify a Firebase ID token and return an app-level JWT.
+ * Creates the user if they don't exist; links firebase_uid if the email
+ * is already registered via email/password. Firebase-authed users can
+ * subsequently call /link-wallet to register a wallet_address for
+ * Chainlink CRE on-chain emission routing.
+ */
+router.post('/firebase', async (req: Request, res: Response): Promise<void> => {
+  const { idToken } = req.body;
+  if (!idToken || typeof idToken !== 'string') {
+    res.status(400).json({ error: 'idToken is required' });
+    return;
+  }
+
+  let decoded: import('firebase-admin').auth.DecodedIdToken;
+  try {
+    decoded = await firebaseAuth.verifyIdToken(idToken);
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired Firebase token' });
+    return;
+  }
+
+  const { uid, email, name } = decoded;
+  if (!email) {
+    res.status(400).json({ error: 'Firebase account has no email address' });
+    return;
+  }
+
+  // Try to find existing user by firebase_uid first, then by email
+  let user = await queryOne<{ id: string; email: string }>(
+    'SELECT id, email FROM users WHERE firebase_uid = $1',
+    [uid]
+  );
+
+  if (!user) {
+    const byEmail = await queryOne<{ id: string; email: string }>(
+      'SELECT id, email FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (byEmail) {
+      // Link firebase_uid to an existing email/password account
+      await query('UPDATE users SET firebase_uid = $1 WHERE id = $2', [uid, byEmail.id]);
+      user = byEmail;
+    } else {
+      // New user — create account
+      const [created] = await query<{ id: string; email: string }>(
+        `INSERT INTO users (email, firebase_uid, name)
+         VALUES ($1, $2, $3)
+         RETURNING id, email`,
+        [email, uid, name ?? null]
+      );
+      user = created;
+    }
   }
 
   const token = signToken({ userId: user.id, email: user.email });
