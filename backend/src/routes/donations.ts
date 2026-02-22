@@ -174,6 +174,16 @@ router.post('/:id/confirm', async (req: Request, res: Response): Promise<void> =
     await recordKarma(client, donation.donor_id, POINTS_DONOR, 'donation_given', donation.id);
     await recordKarma(client, receiverId, POINTS_RECEIVER, 'donation_received', donation.id);
 
+    // Update donor's medal progress (tracks confirmed donations given)
+    await client.query(
+      `INSERT INTO medal_progress (user_id, first_donation_date, total_confirmed_donations)
+       VALUES ($1, NOW(), 1)
+       ON CONFLICT (user_id) DO UPDATE SET
+         first_donation_date = COALESCE(medal_progress.first_donation_date, NOW()),
+         total_confirmed_donations = medal_progress.total_confirmed_donations + 1`,
+      [donation.donor_id]
+    );
+
     return row.rows[0];
   });
 
