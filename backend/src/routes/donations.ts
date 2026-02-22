@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { query, queryOne, transaction } from '../db/index';
 import { verifyJWT } from '../middleware/auth';
 import { distanceKm } from '../lib/geo';
+import { recordKarma } from '../services/karma';
 
 const router = Router();
 
@@ -31,42 +32,6 @@ const ConfirmBody = z.object({
   longitude: z.number().min(-180).max(180),
 });
 
-/**
- * Upsert points into daily_points for today and bump users.karma_points.
- * Also logs a karma_transactions entry.
- * Called inside a transaction client.
- */
-async function awardPoints(
-  client: Parameters<Parameters<typeof transaction>[0]>[0],
-  userId: string,
-  points: number,
-  type: 'donation_given' | 'donation_received',
-  referenceId: string
-): Promise<void> {
-  const today = new Date().toISOString().split('T')[0];
-
-  // Accumulate in daily_points (CRE picks this up at midnight)
-  await client.query(
-    `INSERT INTO daily_points (user_id, day_date, points)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (user_id, day_date)
-     DO UPDATE SET points = daily_points.points + EXCLUDED.points`,
-    [userId, today, points]
-  );
-
-  // Running karma total on the user record
-  await client.query(
-    'UPDATE users SET karma_points = karma_points + $1 WHERE id = $2',
-    [points, userId]
-  );
-
-  // Audit log
-  await client.query(
-    `INSERT INTO karma_transactions (user_id, amount, transaction_type, reference_id, description)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [userId, points, type, referenceId, `${type.replace('_', ' ')} — donation ${referenceId}`]
-  );
-}
 
 /**
  * POST /api/donations
@@ -206,8 +171,8 @@ router.post('/:id/confirm', async (req: Request, res: Response): Promise<void> =
       [receiverId, latitude, longitude, POINTS_DONOR, donation.id]
     );
 
-    await awardPoints(client, donation.donor_id, POINTS_DONOR, 'donation_given', donation.id);
-    await awardPoints(client, receiverId, POINTS_RECEIVER, 'donation_received', donation.id);
+    await recordKarma(client, donation.donor_id, POINTS_DONOR, 'donation_given', donation.id);
+    await recordKarma(client, receiverId, POINTS_RECEIVER, 'donation_received', donation.id);
 
     return row.rows[0];
   });
