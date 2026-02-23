@@ -105,6 +105,18 @@ function staking(): ethers.Contract {
 // Read helpers
 // ---------------------------------------------------------------------------
 
+/** On-chain distribution record for a day number. */
+export async function getDayDistribution(day: number): Promise<{
+  timestamp: number;
+  totalPoints: bigint;
+  totalDistributed: bigint;
+  finalized: boolean;
+}> {
+  const [timestamp, totalPoints, totalDistributed, finalized] =
+    await emissionPool().dailyDistributions(day);
+  return { timestamp: Number(timestamp), totalPoints, totalDistributed, finalized };
+}
+
 /** SHARE token balance for a wallet, formatted in ether units. */
 export async function getUserShareBalance(walletAddress: string): Promise<string> {
   const balance: bigint = await shareToken().balanceOf(walletAddress);
