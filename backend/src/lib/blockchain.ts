@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { markDaySynced } from '../services/karma';
+import { uploadMedalMetadata } from './pinata';
 
 // ---------------------------------------------------------------------------
 // Minimal ABIs — only the functions the backend actually calls
@@ -20,8 +21,10 @@ const EMISSION_POOL_ABI = [
 
 const MEDAL_NFT_ABI = [
   'function mint(address to, uint8 tier, uint256 firstDonationTimestamp, uint256 confirmedDonations) external',
+  'function setTokenMetadataURI(uint256 tokenId, string calldata uri) external',
   'function userMedals(address user, uint8 tier) view returns (uint256)',
   'function canMintMedal(address user, uint8 tier, uint256 firstDonationTimestamp, uint256 confirmedDonations) view returns (bool canMint, string reason)',
+  'event MedalMinted(address indexed user, uint256 indexed tokenId, uint8 tier, uint256 burnAmount)',
 ] as const;
 
 const STAKING_ABI = [
@@ -143,8 +146,9 @@ export async function canMintMedal(
 // ---------------------------------------------------------------------------
 
 /**
- * Mint a medal NFT for a user. Backend must hold MINTER_ROLE on MedalNFT.
- * @returns The transaction hash.
+ * Mint a medal NFT for a user, then upload ERC-721 metadata to Pinata and
+ * set the token URI on-chain. Backend must hold MINTER_ROLE on MedalNFT.
+ * @returns The mint transaction hash.
  */
 export async function mintMedal(
   walletAddress: string,
@@ -152,10 +156,34 @@ export async function mintMedal(
   firstDonationTimestamp: number,
   confirmedDonations: number
 ): Promise<string> {
-  const tx: ethers.TransactionResponse = await medalNFT().mint(
+  const nft = medalNFT();
+
+  const tx: ethers.TransactionResponse = await nft.mint(
     walletAddress, tier, firstDonationTimestamp, confirmedDonations
   );
-  await tx.wait();
+  const receipt = await tx.wait();
+
+  // Parse tokenId from the MedalMinted event in the receipt
+  const iface = new ethers.Interface([
+    'event MedalMinted(address indexed user, uint256 indexed tokenId, uint8 tier, uint256 burnAmount)',
+  ]);
+  let tokenId: number | null = null;
+  for (const log of receipt?.logs ?? []) {
+    try {
+      const parsed = iface.parseLog(log);
+      if (parsed?.name === 'MedalMinted') {
+        tokenId = Number(parsed.args.tokenId);
+        break;
+      }
+    } catch { /* not this event */ }
+  }
+
+  if (tokenId !== null) {
+    const mintedAt = Math.floor(Date.now() / 1000);
+    const metadataUri = await uploadMedalMetadata(tokenId, tier, confirmedDonations, mintedAt);
+    await nft.setTokenMetadataURI(tokenId, metadataUri);
+  }
+
   return tx.hash;
 }
 
