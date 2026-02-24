@@ -191,9 +191,27 @@ export async function mintMedal(
   }
 
   if (tokenId !== null) {
-    const mintedAt = Math.floor(Date.now() / 1000);
-    const metadataUri = await uploadMedalMetadata(tokenId, tier, confirmedDonations, mintedAt);
-    await nft.setTokenMetadataURI(tokenId, metadataUri);
+    // Upload metadata and set the token URI. Wrapped in try/catch so that
+    // a transient Pinata outage does not hide the successful mint. If this
+    // block throws, the error includes txHash and tokenId so the caller can
+    // retry setTokenMetadataURI without re-minting.
+    try {
+      const mintedAt = Math.floor(Date.now() / 1000);
+      const metadataUri = await uploadMedalMetadata(tokenId, tier, confirmedDonations, mintedAt);
+      await nft.setTokenMetadataURI(tokenId, metadataUri);
+    } catch (metaErr) {
+      const retryInfo = { txHash: tx.hash, tokenId, tier, confirmedDonations };
+      console.error(
+        '[blockchain] mintMedal: metadata upload/set failed — token minted but URI not set.' +
+        ' Retry setTokenMetadataURI with:', retryInfo, metaErr
+      );
+      throw Object.assign(
+        new Error(`Medal minted (tokenId=${tokenId}) but metadata URI could not be set. Retry required.`),
+        { txHash: tx.hash, tokenId }
+      );
+    }
+  } else {
+    console.warn('[blockchain] mintMedal: MedalMinted event not found in receipt — tokenId unknown', { txHash: tx.hash });
   }
 
   return tx.hash;

@@ -39,6 +39,8 @@ contract EmissionPoolReceiver is IReceiver, AccessControl {
         (address[] memory users, uint256[] memory points, uint256 day) =
             abi.decode(report, (address[], uint256[], uint256));
 
+        require(users.length == points.length, "Array length mismatch");
+
         emit ReportReceived(day, users.length);
 
         emissionPool.recordPointsBatch(users, points);

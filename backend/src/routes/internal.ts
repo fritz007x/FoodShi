@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { timingSafeEqual } from 'crypto';
 import { query } from '../db/index';
 
 const router = Router();
@@ -19,7 +20,13 @@ function requireInternalKey(req: Request, res: Response, next: NextFunction): vo
   }
 
   const token = authHeader.slice('Bearer '.length);
-  if (token !== apiKey) {
+  // Use constant-time comparison to prevent timing attacks
+  const tokenBuf  = Buffer.from(token,  'utf8');
+  const apiKeyBuf = Buffer.from(apiKey, 'utf8');
+  const invalid =
+    tokenBuf.length !== apiKeyBuf.length ||
+    !timingSafeEqual(tokenBuf, apiKeyBuf);
+  if (invalid) {
     res.status(401).json({ error: 'Invalid API key' });
     return;
   }

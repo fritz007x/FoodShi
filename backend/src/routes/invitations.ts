@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { randomBytes } from 'crypto';
 import { z } from 'zod';
-import { query, queryOne } from '../db/index';
+import { query, queryOne, transaction } from '../db/index';
 import { verifyJWT } from '../middleware/auth';
 
 const router = Router();
@@ -119,35 +119,40 @@ router.post('/accept', verifyJWT, async (req: Request, res: Response): Promise<v
   const { code } = parsed.data;
   const userId = req.user!.userId;
 
-  const user = await queryOne<{ email: string }>(
-    'SELECT email FROM users WHERE id = $1',
-    [userId]
-  );
+  // Run inside a transaction with SELECT FOR UPDATE so that concurrent
+  // requests for the same invite code cannot both pass the status check
+  // and both mark the invitation as accepted (TOCTOU race).
+  const result = await transaction(async (client) => {
+    const userRow = await client.query<{ email: string }>(
+      'SELECT email FROM users WHERE id = $1',
+      [userId]
+    );
+    const userEmail = userRow.rows[0]?.email;
 
-  const invitation = await queryOne<{ id: string; email: string; status: string }>(
-    `SELECT id, email, status FROM invitations WHERE invite_code = $1`,
-    [code]
-  );
+    // Lock the invitation row for the duration of this transaction
+    const invRow = await client.query<{ id: string; email: string; status: string }>(
+      `SELECT id, email, status FROM invitations WHERE invite_code = $1 FOR UPDATE`,
+      [code]
+    );
+    const invitation = invRow.rows[0] ?? null;
 
-  if (!invitation) {
-    res.status(404).json({ error: 'Invitation not found' });
-    return;
-  }
-  if (invitation.status !== 'pending') {
-    res.status(409).json({ error: `Invitation is already ${invitation.status}` });
-    return;
-  }
-  if (invitation.email !== user?.email) {
-    res.status(403).json({ error: 'This invitation was not issued to your email address' });
-    return;
-  }
+    if (!invitation) return { status: 404, body: { error: 'Invitation not found' } };
+    if (invitation.status !== 'pending') {
+      return { status: 409, body: { error: `Invitation is already ${invitation.status}` } };
+    }
+    if (invitation.email !== userEmail) {
+      return { status: 403, body: { error: 'This invitation was not issued to your email address' } };
+    }
 
-  await query(
-    `UPDATE invitations SET status = 'accepted', accepted_at = NOW() WHERE id = $1`,
-    [invitation.id]
-  );
+    await client.query(
+      `UPDATE invitations SET status = 'accepted', accepted_at = NOW() WHERE id = $1`,
+      [invitation.id]
+    );
 
-  res.json({ accepted: true });
+    return { status: 200, body: { accepted: true } };
+  });
+
+  res.status(result.status).json(result.body);
 });
 
 export default router;

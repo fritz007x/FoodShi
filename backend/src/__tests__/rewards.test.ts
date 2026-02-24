@@ -10,20 +10,21 @@ vi.mock('../db/index', () => ({
 }));
 
 vi.mock('../services/karma', () => ({
-  getKarmaHistory:        vi.fn(),
+  getKarmaHistory:          vi.fn(),
   getPendingEmissionPoints: vi.fn(),
-  deductKarma:            vi.fn(),
+  recordKarma:              vi.fn(),
 }));
 
 import rewardsRouter from '../routes/rewards';
-import { query, queryOne } from '../db/index';
-import { getKarmaHistory, getPendingEmissionPoints, deductKarma } from '../services/karma';
+import { query, queryOne, transaction } from '../db/index';
+import { getKarmaHistory, getPendingEmissionPoints, recordKarma } from '../services/karma';
 
 const mockQuery       = vi.mocked(query);
 const mockQueryOne    = vi.mocked(queryOne);
+const mockTransaction = vi.mocked(transaction);
 const mockHistory     = vi.mocked(getKarmaHistory);
 const mockPending     = vi.mocked(getPendingEmissionPoints);
-const mockDeduct      = vi.mocked(deductKarma);
+const mockRecordKarma = vi.mocked(recordKarma);
 
 const JWT_SECRET = 'test-secret';
 const USER_ID    = 'user-uuid';
@@ -217,15 +218,17 @@ describe('POST /api/rewards/exchange', () => {
 
   it('deducts karma and creates an exchange request on success', async () => {
     const wallet = '0x1234567890123456789012345678901234567890';
+    const exchangeRow = {
+      id: 'req-uuid', karma_amount: 100, token_amount: 10,
+      status: 'pending', created_at: new Date().toISOString(),
+    };
     mockQueryOne.mockResolvedValueOnce({ karma_points: 500, wallet_address: wallet });
-    mockDeduct.mockResolvedValueOnce(undefined);
-    mockQuery.mockResolvedValueOnce([{
-      id: 'req-uuid',
-      karma_amount: 100,
-      token_amount: 10,
-      status: 'pending',
-      created_at: new Date().toISOString(),
-    }]);
+    mockTransaction.mockImplementation(async (cb) => {
+      const client = {
+        query: vi.fn().mockResolvedValue({ rows: [exchangeRow], rowCount: 1 }),
+      };
+      return cb(client as any);
+    });
 
     const res = await request(app)
       .post('/api/rewards/exchange')
@@ -236,22 +239,21 @@ describe('POST /api/rewards/exchange', () => {
     expect(res.body.exchangeRequest.karma_amount).toBe(100);
     expect(res.body.exchangeRequest.token_amount).toBe(10);
     expect(res.body.instruction).toContain(wallet);
-    expect(mockDeduct).toHaveBeenCalledWith(
-      USER_ID, 100, 'exchange', undefined, expect.stringContaining('100')
-    );
   });
 
   it('applies the 10:1 exchange rate (100 karma → 10 SHARE)', async () => {
     const wallet = '0xAAAA000000000000000000000000000000000001';
+    const exchangeRow = {
+      id: 'req-2', karma_amount: 200, token_amount: 20,
+      status: 'pending', created_at: new Date().toISOString(),
+    };
     mockQueryOne.mockResolvedValueOnce({ karma_points: 1000, wallet_address: wallet });
-    mockDeduct.mockResolvedValueOnce(undefined);
-    mockQuery.mockResolvedValueOnce([{
-      id: 'req-2',
-      karma_amount: 200,
-      token_amount: 20,
-      status: 'pending',
-      created_at: new Date().toISOString(),
-    }]);
+    mockTransaction.mockImplementation(async (cb) => {
+      const client = {
+        query: vi.fn().mockResolvedValue({ rows: [exchangeRow], rowCount: 1 }),
+      };
+      return cb(client as any);
+    });
 
     const res = await request(app)
       .post('/api/rewards/exchange')

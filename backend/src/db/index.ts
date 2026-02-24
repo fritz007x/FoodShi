@@ -11,8 +11,10 @@ const pool = new Pool({
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+  // Log but do not crash — a transient idle-client error should not bring
+  // down the entire server. The pool will remove the broken client and
+  // create a new one on the next request.
+  console.error('[db] Unexpected error on idle client:', err);
 });
 
 export async function query<T = any>(text: string, params?: any[]): Promise<T[]> {

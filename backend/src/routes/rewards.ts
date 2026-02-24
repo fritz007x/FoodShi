@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { query, queryOne } from '../db/index';
+import { query, queryOne, transaction } from '../db/index';
 import { verifyJWT } from '../middleware/auth';
-import { getKarmaHistory, getPendingEmissionPoints, deductKarma } from '../services/karma';
+import { getKarmaHistory, getPendingEmissionPoints, recordKarma } from '../services/karma';
 
 const router = Router();
 
@@ -143,17 +143,23 @@ router.post('/exchange', async (req: Request, res: Response): Promise<void> => {
   const EXCHANGE_RATE = 10;
   const tokenAmount = karmaAmount / EXCHANGE_RATE;
 
-  // Deduct karma from DB and log the transaction
-  await deductKarma(userId, karmaAmount, 'exchange', undefined,
-    `Exchange ${karmaAmount} karma for ${tokenAmount} SHARE`);
+  // Deduct karma and record the exchange request atomically so a crash
+  // between the two operations cannot leave the user with missing karma
+  // and no exchange record (or vice-versa).
+  const exchangeRequest = await transaction(async (client) => {
+    await recordKarma(
+      client, userId, -Math.abs(karmaAmount), 'exchange', undefined,
+      `Exchange ${karmaAmount} karma for ${tokenAmount} SHARE`
+    );
 
-  // Record the pending exchange request
-  const [exchangeRequest] = await query(
-    `INSERT INTO exchange_requests (user_id, karma_amount, token_amount, status)
-     VALUES ($1, $2, $3, 'pending')
-     RETURNING id, karma_amount, token_amount, status, created_at`,
-    [userId, karmaAmount, tokenAmount]
-  );
+    const result = await client.query(
+      `INSERT INTO exchange_requests (user_id, karma_amount, token_amount, status)
+       VALUES ($1, $2, $3, 'pending')
+       RETURNING id, karma_amount, token_amount, status, created_at`,
+      [userId, karmaAmount, tokenAmount]
+    );
+    return result.rows[0];
+  });
 
   res.status(201).json({
     exchangeRequest,
