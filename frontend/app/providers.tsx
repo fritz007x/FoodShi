@@ -2,7 +2,11 @@
 
 import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { WagmiProvider } from 'wagmi';
+import { RainbowKitProvider, lightTheme } from '@rainbow-me/rainbowkit';
 import { Toaster } from 'react-hot-toast';
+import { wagmiConfig } from '@/lib/wagmi';
+import '@rainbow-me/rainbowkit/styles.css';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -18,9 +22,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-      <Toaster position="top-right" />
-    </QueryClientProvider>
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <RainbowKitProvider
+          theme={lightTheme({
+            accentColor: '#16a34a',        // primary-600
+            accentColorForeground: 'white',
+            borderRadius: 'large',
+          })}
+        >
+          {children}
+          <Toaster position="top-right" />
+        </RainbowKitProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }
