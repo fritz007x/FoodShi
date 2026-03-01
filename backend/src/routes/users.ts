@@ -77,6 +77,26 @@ router.patch('/me', async (req: Request, res: Response): Promise<void> => {
 });
 
 /**
+ * GET /api/users/leaderboard
+ * Top users ranked by karma_points. Must be defined before /:id.
+ */
+router.get('/leaderboard', async (req: Request, res: Response): Promise<void> => {
+  const limit = Math.min(Number(req.query.limit) || 50, 100);
+
+  const users = await query(
+    `SELECT u.id, u.name, u.profile_pic, u.karma_points, u.is_verified_donor,
+            COALESCE(mp.total_confirmed_donations, 0) AS total_confirmed_donations
+     FROM users u
+     LEFT JOIN medal_progress mp ON mp.user_id = u.id
+     ORDER BY u.karma_points DESC
+     LIMIT $1`,
+    [limit]
+  );
+
+  res.json({ users });
+});
+
+/**
  * GET /api/users/:id
  * Public profile — exposes only non-sensitive fields.
  */
