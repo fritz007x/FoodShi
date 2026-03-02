@@ -1,190 +1,144 @@
-# FOODSHI - Web3 Food Donation Platform
+# FOODSHI — Web3 Food Donation Platform
 
-A Web3 microblogging platform where users donate food, earn Karma Points, exchange them for $SHARE tokens, and mint NFT medals. Built on Polygon PoS with GPS geofencing for fraud prevention.
+Turn surplus food into on-chain rewards. Donors list food, neighbours confirm
+pickup via GPS, both earn **Karma Points** which exchange for **$SHARE** ERC-20
+tokens. Hit donation milestones to mint **NFT medals** on Polygon Amoy.
 
-## Project Structure
+---
+
+## Project structure
 
 ```
 foodshi/
-├── contracts/          # Solidity smart contracts (Hardhat)
+├── contracts/          Solidity + Hardhat
 │   ├── contracts/
-│   │   ├── ShareToken.sol     # ERC-20 token
-│   │   ├── Treasury.sol       # Treasury management
-│   │   ├── Staking.sol        # Token staking
-│   │   ├── MedalNFT.sol       # ERC-721 medal NFTs
-│   │   └── EmissionPool.sol   # Daily token distribution
-│   ├── scripts/
-│   │   └── deploy.ts          # Deployment script
-│   └── test/
-│       └── ShareToken.test.ts # Contract tests
+│   │   ├── ShareToken.sol             ERC-20 (10 M initial, 100 M cap)
+│   │   ├── EmissionPool.sol           Daily 1,000 $SHARE distribution
+│   │   ├── EmissionPoolReceiver.sol   Chainlink CRE consumer
+│   │   ├── MedalNFT.sol               ERC-721 Bronze/Silver/Gold/Platinum
+│   │   ├── Staking.sol                Min-stake gate + fraud strikes
+│   │   └── Treasury.sol               Daily withdrawal limits
+│   └── scripts/deploy.ts
 │
-├── backend/            # Express API server
+├── backend/            Express + TypeScript + PostgreSQL
 │   └── src/
-│       ├── index.ts           # Server entry point
-│       ├── db/
-│       │   ├── schema.sql     # PostgreSQL schema
-│       │   └── index.ts       # Database connection
-│       ├── routes/
-│       │   ├── auth.ts        # Authentication
-│       │   ├── users.ts       # User profiles
-│       │   ├── donations.ts   # Donation management
-│       │   ├── posts.ts       # Microblogging
-│       │   ├── reports.ts     # Abuse reports
-│       │   ├── rewards.ts     # Karma & tokens
-│       │   ├── invitations.ts # User invitations
-│       │   └── contributions.ts # Payments
-│       ├── services/
-│       │   ├── gps.ts         # GPS verification
-│       │   ├── karma.ts       # Karma point logic
-│       │   └── blockchain.ts  # Web3 integration
-│       ├── middleware/
-│       │   ├── auth.ts        # JWT authentication
-│       │   └── errorHandler.ts
-│       └── jobs/
-│           └── scheduler.ts   # Background jobs
+│       ├── db/schema.sql
+│       ├── routes/      auth, users, donations, posts, rewards,
+│       │                reports, invitations, internal
+│       ├── services/    karma.ts
+│       ├── lib/         blockchain.ts, pinata.ts, geo.ts, firebase.ts
+│       ├── middleware/  auth.ts (JWT)
+│       └── jobs/        scheduler.ts (midnight emission, hourly expiry)
 │
-└── frontend/           # Next.js 14 application
-    ├── app/
-    │   ├── page.tsx           # Landing page
-    │   ├── login/page.tsx     # Login
-    │   ├── signup/page.tsx    # Signup
-    │   ├── feed/page.tsx      # Social feed
-    │   ├── donate/page.tsx    # Create donation
-    │   ├── donations/page.tsx # Donation list
-    │   ├── profile/[id]/page.tsx # User profile
-    │   ├── rewards/page.tsx   # Karma & medals
-    │   ├── wallet/page.tsx    # Web3 wallet
-    │   ├── leaderboard/page.tsx
-    │   └── settings/page.tsx
-    ├── components/
-    │   ├── Layout.tsx
-    │   ├── PostCard.tsx
-    │   └── DonationCard.tsx
-    └── lib/
-        ├── wagmi.ts           # Web3 config
-        ├── api.ts             # API client
-        ├── store.ts           # Zustand stores
-        └── utils.ts           # Utilities
+├── frontend/           Next.js 14 + wagmi/RainbowKit
+│   ├── app/
+│   │   ├── page.tsx                  Landing page
+│   │   ├── login/ signup/            Auth pages
+│   │   ├── feed/                     Social feed
+│   │   ├── donate/                   Create donation
+│   │   ├── donations/[id]/           Donation detail + confirm
+│   │   ├── rewards/                  Karma, exchange, medals
+│   │   ├── leaderboard/
+│   │   ├── profile/[id]/
+│   │   └── settings/
+│   ├── components/     Layout, Sidebar, ConnectWalletButton
+│   └── lib/            wagmi.ts, api.ts, store.ts (Zustand)
+│
+└── docs/
+    └── deployment.md   Step-by-step setup & deployment guide
 ```
 
-## Features
+---
 
-### Core Features
-- **Food Donations** - Create donations with GPS verification
-- **Microblogging** - Share stories, like posts
-- **Karma Points** - Earn points for donations (10 points each)
-- **$SHARE Tokens** - Exchange karma for ERC-20 tokens
-- **NFT Medals** - Mint Bronze/Silver/Gold/Platinum medals
+## Key business rules
 
-### Fraud Prevention
-- GPS geofencing (100m radius)
-- 3-day challenge period for disputes
-- 3-strike slashing mechanism
-- Staking requirements for withdrawals
+| Rule | Value |
+|------|-------|
+| Karma per confirmed donation | 100 pts (donor) + 50 pts (receiver) |
+| Exchange rate | 10 karma = 1 $SHARE |
+| Minimum exchange | 100 karma |
+| GPS geofence (confirm) | 5 km Haversine |
+| Challenge period | 24 h per listing |
+| Fraud strikes before slash | 3 → 50 % stake to Treasury |
+| Daily $SHARE emission | 1,000 $SHARE / day |
+| Super Donor stake | 500 $SHARE → 1.5× multiplier |
 
-### Medal Requirements
-| Medal | Time | Donations | $SHARE Burn |
-|-------|------|-----------|-------------|
-| Bronze | 1 month | 20 | 50 |
-| Silver | 3 months | 70 | 150 |
-| Gold | 6 months | 150 | 300 |
-| Platinum | 1 year | 320 | 500 |
+### Medal tiers
 
-## Getting Started
+| Tier | Days active | Donations | $SHARE burn |
+|------|------------|-----------|-------------|
+| Bronze | 30 | 20 | 50 |
+| Silver | 90 | 70 | 150 |
+| Gold | 180 | 150 | 300 |
+| Platinum | 365 | 320 | 500 |
 
-### Prerequisites
-- Node.js 18+
-- PostgreSQL
+---
 
-### Installation
+## Quick start
 
-1. **Install dependencies:**
 ```bash
+git clone <repo-url> foodshi && cd foodshi
 npm install
-```
 
-2. **Set up environment variables:**
-```bash
-cp .env.example .env
-# Edit .env with your configuration
-```
+cp .env.example .env                          # fill in all blank values
+cp frontend/.env.local.example frontend/.env.local
 
-3. **Set up the database:**
-```bash
-npm run backend:db:migrate
-```
+# Apply DB schema
+psql $DATABASE_URL -f backend/src/db/schema.sql
 
-4. **Deploy smart contracts (testnet):**
-```bash
-cd contracts
-npm install
-npx hardhat compile
+# Compile & deploy contracts (needs test MATIC)
+cd contracts && npx hardhat compile
 npx hardhat run scripts/deploy.ts --network amoy
-```
+cd ..
 
-5. **Start development servers:**
-```bash
+# Start backend (:3001) + frontend (:3000)
 npm run dev
 ```
 
-This starts:
-- Backend API: http://localhost:3001
-- Frontend: http://localhost:3000
+See **[docs/deployment.md](docs/deployment.md)** for the full guide including
+Chainlink CRE setup, contract verification, and production hosting.
 
-## Smart Contracts
+---
 
-### Contract Addresses (After Deployment)
-Update `.env` with deployed addresses:
-```
-NEXT_PUBLIC_SHARE_TOKEN_ADDRESS=0x...
-NEXT_PUBLIC_STAKING_ADDRESS=0x...
-NEXT_PUBLIC_MEDAL_NFT_ADDRESS=0x...
-NEXT_PUBLIC_EMISSION_POOL_ADDRESS=0x...
-NEXT_PUBLIC_TREASURY_ADDRESS=0x...
-```
+## API overview
 
-### Key Parameters
-- Daily Emission: 1,000 $SHARE/day
-- Exchange Rate: 10 Karma = 1 $SHARE
-- Minimum Stake: 10 $SHARE (for withdrawals)
-- Super Donor Stake: 500 $SHARE (1.5x multiplier)
-- Challenge Period: 3 days
-- Fraud Strikes: 3 before slashing (50%)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/auth/signup` | Create account |
+| POST | `/api/auth/login` | Login → JWT |
+| POST | `/api/auth/link-wallet` | Link wallet address |
+| GET | `/api/users/leaderboard` | Top donors by karma |
+| GET | `/api/users/me` | Own full profile |
+| PATCH | `/api/users/me` | Update name / bio / avatar |
+| GET | `/api/users/:id` | Public profile |
+| POST | `/api/donations` | Create donation listing |
+| GET | `/api/donations` | List (filter by status) |
+| POST | `/api/donations/:id/confirm` | GPS-gated pickup confirm |
+| POST | `/api/donations/:id/dispute` | Flag donation |
+| POST | `/api/donations/:id/cancel` | Donor cancels |
+| GET | `/api/posts` | Paginated feed |
+| POST | `/api/posts` | Publish post |
+| POST | `/api/posts/:id/like` | Like (idempotent) |
+| DELETE | `/api/posts/:id/like` | Unlike |
+| GET | `/api/rewards/karma` | Balance + history |
+| GET | `/api/rewards/medals` | Progress per tier |
+| POST | `/api/rewards/exchange` | Karma → $SHARE request |
+| GET | `/api/internal/daily-points` | Chainlink CRE endpoint |
 
-## API Endpoints
+---
 
-### Authentication
-- `POST /api/auth/signup` - Create account
-- `POST /api/auth/login` - Login
-- `GET /api/auth/me` - Current user
-- `POST /api/auth/wallet` - Link wallet
+## Tech stack
 
-### Donations
-- `POST /api/donations` - Create donation
-- `GET /api/donations` - List donations
-- `POST /api/donations/:id/confirm` - Confirm (GPS)
-- `POST /api/donations/:id/dispute` - Dispute
+| Layer | Tech |
+|-------|------|
+| Contracts | Solidity ^0.8.20, Hardhat, OpenZeppelin, Chainlink CRE |
+| Backend | Node.js 18, Express, TypeScript, PostgreSQL, ethers.js v6 |
+| Frontend | Next.js 14, TailwindCSS, wagmi v2, RainbowKit v2, Zustand |
+| Auth | JWT (7-day), optional Firebase |
+| IPFS | Pinata (medal NFT metadata) |
+| Network | Polygon Amoy testnet |
 
-### Posts
-- `POST /api/posts` - Create post
-- `GET /api/posts` - Feed
-- `POST /api/posts/:id/like` - Like/unlike
-
-### Rewards
-- `GET /api/rewards/karma` - Karma balance
-- `POST /api/rewards/exchange` - Exchange for tokens
-- `GET /api/rewards/medals` - Medal eligibility
-- `POST /api/rewards/medals/mint` - Mint medal NFT
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Frontend | Next.js 14, React 18, TailwindCSS, wagmi/viem |
-| Backend | Node.js, Express, PostgreSQL |
-| Blockchain | Polygon PoS, Solidity, Hardhat |
-| Auth | JWT, Firebase Auth (optional) |
-| Web3 | RainbowKit, Privy/Web3Auth |
+---
 
 ## License
 
