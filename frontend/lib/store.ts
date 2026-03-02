@@ -3,6 +3,10 @@ import { persist } from 'zustand/middleware';
 
 // ---------------------------------------------------------------------------
 // Auth store — JWT + user data, persisted to localStorage
+// SECURITY NOTE: localStorage is readable by any JavaScript on the page.
+// httpOnly cookies would eliminate this XSS vector, but require backend
+// changes. For the current scope this trade-off is accepted; ensure a strict
+// CSP is deployed to mitigate the risk.
 // ---------------------------------------------------------------------------
 
 export interface AuthUser {
@@ -79,7 +83,14 @@ interface GeolocationState {
   permission: GeolocationPermission;
   loading: boolean;
   error: string | null;
+  /** Uses maximumAge: 60 s — suitable for display purposes. */
   requestLocation: () => void;
+  /**
+   * Always requests a fresh GPS fix (maximumAge: 0).
+   * Use this for security-sensitive operations like donation confirm where
+   * a stale cached position could bypass the proximity check.
+   */
+  requestFreshLocation: () => void;
   clearPosition: () => void;
 }
 
@@ -94,9 +105,7 @@ export const useGeolocationStore = create<GeolocationState>()((set) => ({
       set({ error: 'Geolocation is not supported by your browser', loading: false });
       return;
     }
-
     set({ loading: true, error: null });
-
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         set({
@@ -114,6 +123,32 @@ export const useGeolocationStore = create<GeolocationState>()((set) => ({
         });
       },
       { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 }
+    );
+  },
+
+  requestFreshLocation: () => {
+    if (!navigator.geolocation) {
+      set({ error: 'Geolocation is not supported by your browser', loading: false });
+      return;
+    }
+    set({ loading: true, error: null });
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        set({
+          position: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+          permission: 'granted',
+          loading: false,
+          error: null,
+        });
+      },
+      (err) => {
+        set({
+          permission: err.code === err.PERMISSION_DENIED ? 'denied' : 'prompt',
+          loading: false,
+          error: err.message,
+        });
+      },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 }
     );
   },
 

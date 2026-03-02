@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { MapPin, Package, Plus } from 'lucide-react';
 import { Layout } from '@/components/Layout';
+import { getSafeImageUrl } from '@/lib/utils';
 import api from '@/lib/api';
 
 interface Donation {
@@ -69,11 +70,12 @@ export default function DonationsPage() {
               className="block rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-primary-300 hover:shadow-md transition"
             >
               <div className="flex items-start gap-3">
-                {d.photo_url ? (
+                {getSafeImageUrl(d.photo_url) ? (
                   <img
-                    src={d.photo_url}
+                    src={getSafeImageUrl(d.photo_url)!}
                     alt="donation"
                     className="h-16 w-16 shrink-0 rounded-lg object-cover"
+                    referrerPolicy="no-referrer"
                   />
                 ) : (
                   <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-primary-50">

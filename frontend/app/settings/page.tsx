@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Wallet } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -32,15 +32,18 @@ export default function SettingsPage() {
   const [name,       setName]       = useState('');
   const [bio,        setBio]        = useState('');
   const [profilePic, setProfilePic] = useState('');
+  const [seeded,     setSeeded]     = useState(false);
 
-  // Populate once data arrives (only if fields are still empty)
-  const [seeded, setSeeded] = useState(false);
-  if (me && !seeded) {
-    setName(me.name ?? '');
-    setBio(me.bio ?? '');
-    setProfilePic(me.profile_pic ?? '');
-    setSeeded(true);
-  }
+  // Populate form fields once the query resolves — must be in useEffect, not
+  // during render, to avoid the React render-phase setState anti-pattern.
+  useEffect(() => {
+    if (me && !seeded) {
+      setName(me.name ?? '');
+      setBio(me.bio ?? '');
+      setProfilePic(me.profile_pic ?? '');
+      setSeeded(true);
+    }
+  }, [me, seeded]);
 
   const updateMut = useMutation({
     mutationFn: (body: Record<string, string>) =>

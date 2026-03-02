@@ -10,6 +10,7 @@ import {
 import toast from 'react-hot-toast';
 import { Layout } from '@/components/Layout';
 import { useAuthStore, useGeolocationStore } from '@/lib/store';
+import { getSafeImageUrl } from '@/lib/utils';
 import api from '@/lib/api';
 
 interface Donation {
@@ -41,9 +42,9 @@ export default function DonationDetailPage({
   const router       = useRouter();
   const qc           = useQueryClient();
   const { user }     = useAuthStore();
-  const { position, loading: gpsLoading, requestLocation } = useGeolocationStore();
+  const { position, loading: gpsLoading, requestFreshLocation } = useGeolocationStore();
 
-  // Whether we're waiting for GPS before firing confirm
+  // Whether we're waiting for a fresh GPS fix before firing confirm
   const [awaitingGps, setAwaitingGps] = useState(false);
 
   const { data: donation, isLoading, error } = useQuery({
@@ -110,24 +111,25 @@ export default function DonationDetailPage({
   });
 
   // ── GPS-gated confirm ──────────────────────────────────────────────────────
+  // Always requests a FRESH position (maximumAge: 0) so a cached fix from a
+  // different location cannot satisfy the proximity check. The idempotency
+  // guard prevents double-fire if the user taps the button repeatedly while
+  // GPS is resolving.
 
   function handleConfirm() {
-    if (position) {
-      confirmMut.mutate(position);
-    } else {
-      setAwaitingGps(true);
-      requestLocation();
-      toast('Getting your location…', { icon: '📍' });
-    }
+    if (confirmMut.isPending || awaitingGps) return; // idempotency guard
+    setAwaitingGps(true);
+    requestFreshLocation();
+    toast('Getting your location…', { icon: '📍' });
   }
 
-  // Fire confirm once GPS arrives after a user click
+  // Fire confirm once a fresh GPS fix arrives
   useEffect(() => {
-    if (awaitingGps && position) {
+    if (awaitingGps && position && !confirmMut.isPending) {
       setAwaitingGps(false);
       confirmMut.mutate(position);
     }
-  }, [awaitingGps, position]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [awaitingGps, position, confirmMut]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -159,12 +161,13 @@ export default function DonationDetailPage({
     <Layout title="Donation detail">
       <div className="mx-auto max-w-lg space-y-5">
 
-        {/* Photo */}
-        {donation.photo_url && (
+        {/* Photo — only render HTTPS URLs to prevent IP leaks */}
+        {getSafeImageUrl(donation.photo_url) && (
           <img
-            src={donation.photo_url}
+            src={getSafeImageUrl(donation.photo_url)!}
             alt="donation"
             className="w-full rounded-xl object-cover max-h-64"
+            referrerPolicy="no-referrer"
           />
         )}
 

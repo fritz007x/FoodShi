@@ -9,7 +9,7 @@ import { Heart, Trash2, Loader2, ImageIcon, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Layout } from '@/components/Layout';
 import { useAuthStore } from '@/lib/store';
-import { cn } from '@/lib/utils';
+import { cn, getSafeImageUrl } from '@/lib/utils';
 import api from '@/lib/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -306,13 +306,14 @@ function PostCard({
       {/* Content */}
       <p className="px-4 pt-3 pb-3 text-sm text-gray-800 whitespace-pre-wrap">{post.content}</p>
 
-      {/* Image */}
-      {post.image_url && (
+      {/* Image — only render HTTPS URLs to prevent IP leaks */}
+      {getSafeImageUrl(post.image_url) && (
         <div className="px-4 pb-3">
           <img
-            src={post.image_url}
+            src={getSafeImageUrl(post.image_url)!}
             alt="post image"
             className="w-full rounded-lg object-cover max-h-72"
+            referrerPolicy="no-referrer"
           />
         </div>
       )}
