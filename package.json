@@ -16,7 +16,9 @@
     "backend:build": "npm run build --workspace=backend",
     "frontend:dev": "npm run dev --workspace=frontend",
     "frontend:build": "npm run build --workspace=frontend",
-    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\""
+    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\"",
+    "e2e": "npm run test:e2e --workspace=frontend",
+    "e2e:ui": "npm run test:e2e:ui --workspace=frontend"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
