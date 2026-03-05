@@ -35,11 +35,15 @@ contract Treasury is ITreasury, AccessControl, ReentrancyGuard {
     uint256 public lastETHWithdrawalDay;
     uint256 public withdrawnETHToday;
 
+    // Allowlisted withdrawal recipients — only these addresses can receive funds
+    mapping(address => bool) public allowlistedRecipients;
+
     event TokensDeposited(address indexed from, uint256 amount, string source);
     event TokensWithdrawn(address indexed to, uint256 amount, string reason);
     event ETHWithdrawn(address indexed to, uint256 amount, string reason);
     event DailyLimitUpdated(uint256 oldLimit, uint256 newLimit);
     event DailyETHLimitUpdated(uint256 oldLimit, uint256 newLimit);
+    event RecipientAllowlisted(address indexed recipient, bool allowed);
 
     constructor(address _shareToken) {
         require(_shareToken != address(0), "Invalid token address");
@@ -111,6 +115,7 @@ contract Treasury is ITreasury, AccessControl, ReentrancyGuard {
         string calldata reason
     ) external onlyRole(GOVERNOR_ROLE) nonReentrant {
         require(to != address(0), "Invalid recipient");
+        require(allowlistedRecipients[to], "Recipient not allowlisted");
 
         // Check daily limit
         uint256 currentDay = block.timestamp / 1 days;
@@ -138,6 +143,7 @@ contract Treasury is ITreasury, AccessControl, ReentrancyGuard {
         string calldata reason
     ) external onlyRole(GOVERNOR_ROLE) nonReentrant {
         require(to != address(0), "Invalid recipient");
+        require(allowlistedRecipients[to], "Recipient not allowlisted");
         require(address(this).balance >= amount, "Insufficient ETH balance");
 
         // Check daily ETH limit
@@ -174,6 +180,20 @@ contract Treasury is ITreasury, AccessControl, ReentrancyGuard {
         uint256 oldLimit = dailyETHWithdrawalLimit;
         dailyETHWithdrawalLimit = newLimit;
         emit DailyETHLimitUpdated(oldLimit, newLimit);
+    }
+
+    /**
+     * @notice Add or remove an address from the withdrawal allowlist
+     * @param recipient Address to update
+     * @param allowed Whether the address is allowed to receive withdrawals
+     */
+    function setAllowlistedRecipient(
+        address recipient,
+        bool allowed
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(recipient != address(0), "Invalid recipient");
+        allowlistedRecipients[recipient] = allowed;
+        emit RecipientAllowlisted(recipient, allowed);
     }
 
     /**
