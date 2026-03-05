@@ -1,4 +1,4 @@
-import PinataClient from '@pinata/sdk';
+import { PinataSDK } from 'pinata';
 import { MedalTier } from './blockchain';
 
 const TIER_NAMES: Record<MedalTier, string> = {
@@ -22,16 +22,15 @@ const IMAGE_CID_KEYS: Record<MedalTier, string> = {
   [MedalTier.Platinum]: 'MEDAL_IMAGE_CID_PLATINUM',
 };
 
-let _client: PinataClient | null = null;
+let _client: PinataSDK | null = null;
 
-function getClient(): PinataClient {
+function getClient(): PinataSDK {
   if (!_client) {
-    if (!process.env.PINATA_API_KEY || !process.env.PINATA_SECRET_KEY) {
-      throw new Error('PINATA_API_KEY and PINATA_SECRET_KEY must be set');
+    if (!process.env.PINATA_JWT) {
+      throw new Error('PINATA_JWT must be set');
     }
-    _client = new PinataClient({
-      pinataApiKey:       process.env.PINATA_API_KEY,
-      pinataSecretApiKey: process.env.PINATA_SECRET_KEY,
+    _client = new PinataSDK({
+      pinataJwt: process.env.PINATA_JWT,
     });
   }
   return _client;
@@ -42,7 +41,7 @@ function getClient(): PinataClient {
  * The image CID must be pre-uploaded via the upload:medals script and
  * set in the corresponding MEDAL_IMAGE_CID_* env var.
  *
- * @returns Full IPFS URI — e.g. "ipfs://Qm..."
+ * @returns Full IPFS URI — e.g. "ipfs://bafy..."
  */
 export async function uploadMedalMetadata(
   tokenId: number,
@@ -71,11 +70,14 @@ export async function uploadMedalMetadata(
     ],
   };
 
-  const result = await getClient().pinJSONToIPFS(metadata, {
-    pinataMetadata: {
-      name: `foodshi-medal-${tierName.toLowerCase()}-${tokenId}`,
-    },
-  });
+  const blob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
+  const file = new File(
+    [blob],
+    `foodshi-medal-${tierName.toLowerCase()}-${tokenId}.json`,
+    { type: 'application/json' },
+  );
 
-  return `ipfs://${result.IpfsHash}`;
+  const result = await getClient().upload.public.file(file);
+
+  return `ipfs://${result.cid}`;
 }

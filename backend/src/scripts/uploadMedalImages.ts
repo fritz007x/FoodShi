@@ -17,9 +17,9 @@
  *   MEDAL_IMAGE_CID_PLATINUM=<cid>
  */
 
-import { createReadStream } from 'fs';
+import { readFileSync } from 'fs';
 import { join } from 'path';
-import PinataClient from '@pinata/sdk';
+import { PinataSDK } from 'pinata';
 import dotenv from 'dotenv';
 
 dotenv.config({ path: join(__dirname, '../../../.env') });
@@ -27,14 +27,13 @@ dotenv.config({ path: join(__dirname, '../../../.env') });
 const TIERS = ['bronze', 'silver', 'gold', 'platinum'] as const;
 
 async function main() {
-  if (!process.env.PINATA_API_KEY || !process.env.PINATA_SECRET_KEY) {
-    console.error('Error: PINATA_API_KEY and PINATA_SECRET_KEY must be set in .env');
+  if (!process.env.PINATA_JWT) {
+    console.error('Error: PINATA_JWT must be set in .env');
     process.exit(1);
   }
 
-  const pinata = new PinataClient({
-    pinataApiKey:       process.env.PINATA_API_KEY,
-    pinataSecretApiKey: process.env.PINATA_SECRET_KEY,
+  const pinata = new PinataSDK({
+    pinataJwt: process.env.PINATA_JWT,
   });
 
   console.log('Uploading medal images to Pinata IPFS...\n');
@@ -43,14 +42,17 @@ async function main() {
 
   for (const tier of TIERS) {
     const filePath = join(__dirname, '../../assets/medals', `${tier}.png`);
-    const stream = createReadStream(filePath);
+    const buffer = readFileSync(filePath);
+    const file = new File(
+      [buffer],
+      `foodshi-medal-${tier}.png`,
+      { type: 'image/png' },
+    );
 
-    const result = await pinata.pinFileToIPFS(stream, {
-      pinataMetadata: { name: `foodshi-medal-${tier}` },
-    });
+    const result = await pinata.upload.public.file(file);
 
-    cids[tier] = result.IpfsHash;
-    console.log(`${tier.toUpperCase()}: ${result.IpfsHash}`);
+    cids[tier] = result.cid;
+    console.log(`${tier.toUpperCase()}: ${result.cid}`);
   }
 
   console.log('\nAdd these to your .env file:');
