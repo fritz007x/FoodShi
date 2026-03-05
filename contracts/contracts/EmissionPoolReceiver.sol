@@ -46,4 +46,16 @@ contract EmissionPoolReceiver is IReceiver, AccessControl {
         emissionPool.recordPointsBatch(users, points);
         emissionPool.finalizeDay(day);
     }
+
+    /// @dev Resolve supportsInterface conflict between IReceiver (IERC165) and AccessControl.
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(AccessControl, IERC165)
+        returns (bool)
+    {
+        return
+            interfaceId == type(IReceiver).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
 }
