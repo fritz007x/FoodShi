@@ -2,7 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: ['ipfs.io', 'gateway.pinata.cloud', 'avatars.githubusercontent.com'],
+    remotePatterns: [
+      { hostname: 'ipfs.io' },
+      { hostname: 'gateway.pinata.cloud' },
+      { hostname: 'avatars.githubusercontent.com' },
+    ],
   },
   webpack: (config) => {
     config.resolve.fallback = { fs: false, net: false, tls: false };
