@@ -21,15 +21,16 @@ interface LayoutProps {
 export function Layout({ children, title, actions }: LayoutProps) {
   const router          = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const hydrated        = useAuthStore((s) => s._hydrated);
 
-  // Redirect unauthenticated users to login
+  // Redirect unauthenticated users to login — only after hydration
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (hydrated && !isAuthenticated) {
       router.replace('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [hydrated, isAuthenticated, router]);
 
-  if (!isAuthenticated) return null;
+  if (!hydrated || !isAuthenticated) return null;
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">

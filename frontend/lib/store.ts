@@ -22,6 +22,8 @@ interface AuthState {
   token: string | null;
   user: AuthUser | null;
   isAuthenticated: boolean;
+  /** True once zustand has finished rehydrating from localStorage. */
+  _hydrated: boolean;
   setAuth: (token: string, user: AuthUser) => void;
   updateUser: (updates: Partial<AuthUser>) => void;
   logout: () => void;
@@ -33,6 +35,7 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       user: null,
       isAuthenticated: false,
+      _hydrated: false,
 
       setAuth: (token, user) =>
         set({ token, user, isAuthenticated: true }),
@@ -52,6 +55,9 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         isAuthenticated: !!(state.token && state.user),
       }),
+      onRehydrateStorage: () => () => {
+        useAuthStore.setState({ _hydrated: true });
+      },
     }
   )
 );
