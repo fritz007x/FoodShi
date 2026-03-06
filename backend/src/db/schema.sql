@@ -16,6 +16,8 @@ CREATE TABLE users (
     karma_points INTEGER DEFAULT 0,
     pending_karma INTEGER DEFAULT 0,
     is_verified_donor BOOLEAN DEFAULT FALSE,
+    worldid_nullifier_hash VARCHAR(66) UNIQUE,
+    worldid_verified_at TIMESTAMP,
     stake_amount DECIMAL(36, 18) DEFAULT 0,
     stake_unlock_date TIMESTAMP,
     fraud_strikes INTEGER DEFAULT 0,

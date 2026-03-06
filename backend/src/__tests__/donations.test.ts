@@ -58,6 +58,11 @@ describe('POST /api/donations', () => {
     process.env.JWT_SECRET = JWT_SECRET;
   });
 
+  // Helper: mock the requireVerified middleware's queryOne call
+  function mockVerified(verified = true) {
+    mockQueryOne.mockResolvedValueOnce({ is_verified_donor: verified });
+  }
+
   it('returns 401 without a JWT', async () => {
     const res = await request(app).post('/api/donations').send({
       latitude: 48.8, longitude: 2.3, description: 'Food',
@@ -65,7 +70,21 @@ describe('POST /api/donations', () => {
     expect(res.status).toBe(401);
   });
 
+  it('returns 403 when user is not World ID verified', async () => {
+    mockVerified(false);
+
+    const res = await request(app)
+      .post('/api/donations')
+      .set('Authorization', `Bearer ${makeToken()}`)
+      .send({ latitude: 48.8566, longitude: 2.3522, description: 'Food' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/verification/i);
+  });
+
   it('returns 400 when body is missing required fields', async () => {
+    mockVerified();
+
     const res = await request(app)
       .post('/api/donations')
       .set('Authorization', `Bearer ${makeToken()}`)
@@ -75,6 +94,8 @@ describe('POST /api/donations', () => {
   });
 
   it('returns 400 when latitude is out of range', async () => {
+    mockVerified();
+
     const res = await request(app)
       .post('/api/donations')
       .set('Authorization', `Bearer ${makeToken()}`)
@@ -84,6 +105,7 @@ describe('POST /api/donations', () => {
   });
 
   it('creates a donation and returns 201 on success', async () => {
+    mockVerified();
     const created = makeDonation({ id: 'new-don' });
     mockQuery.mockResolvedValueOnce([created]);
 
@@ -97,6 +119,7 @@ describe('POST /api/donations', () => {
   });
 
   it('accepts an optional photoUrl', async () => {
+    mockVerified();
     mockQuery.mockResolvedValueOnce([makeDonation()]);
 
     const res = await request(app)

@@ -8,6 +8,7 @@
     "test:coverage": "hardhat coverage",
     "deploy:amoy": "hardhat run scripts/deploy.ts --network amoy",
     "deploy:polygon": "hardhat run scripts/deploy.ts --network polygon",
+    "deploy:tenderly": "hardhat run scripts/deploy.ts --network tenderly",
     "verify": "hardhat verify"
   },
   "devDependencies": {
@@ -16,6 +17,7 @@
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
     "@nomicfoundation/ignition-core": "^0.15.15",
     "@openzeppelin/contracts": "^5.0.1",
+    "@tenderly/hardhat-tenderly": "^2.5.2",
     "@types/chai-as-promised": "^7.1.8",
     "chai-as-promised": "^7.1.2",
     "dotenv": "^16.3.1",

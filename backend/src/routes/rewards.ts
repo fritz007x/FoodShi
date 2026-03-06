@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { query, queryOne, transaction } from '../db/index';
 import { verifyJWT } from '../middleware/auth';
+import { requireVerified } from '../middleware/requireVerified';
 import { getKarmaHistory, getPendingEmissionPoints, recordKarma } from '../services/karma';
 
 const router = Router();
@@ -114,7 +115,7 @@ router.get('/medals', async (req: Request, res: Response): Promise<void> => {
  * EmissionPool.exchangePoints() from their wallet to receive $SHARE tokens.
  * Requires a linked wallet_address (set via POST /api/auth/link-wallet).
  */
-router.post('/exchange', async (req: Request, res: Response): Promise<void> => {
+router.post('/exchange', requireVerified, async (req: Request, res: Response): Promise<void> => {
   const parsed = ExchangeBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.errors[0].message });

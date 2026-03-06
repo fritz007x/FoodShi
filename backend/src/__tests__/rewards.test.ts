@@ -163,6 +163,11 @@ describe('POST /api/rewards/exchange', () => {
     process.env.JWT_SECRET = JWT_SECRET;
   });
 
+  // Helper: mock the requireVerified middleware's queryOne call
+  function mockVerified(verified = true) {
+    mockQueryOne.mockResolvedValueOnce({ is_verified_donor: verified });
+  }
+
   it('returns 401 without a JWT', async () => {
     const res = await request(app)
       .post('/api/rewards/exchange')
@@ -171,7 +176,21 @@ describe('POST /api/rewards/exchange', () => {
     expect(res.status).toBe(401);
   });
 
+  it('returns 403 when user is not World ID verified', async () => {
+    mockVerified(false);
+
+    const res = await request(app)
+      .post('/api/rewards/exchange')
+      .set('Authorization', `Bearer ${makeToken()}`)
+      .send({ karmaAmount: 100 });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/verification/i);
+  });
+
   it('returns 400 when karmaAmount is below 100', async () => {
+    mockVerified();
+
     const res = await request(app)
       .post('/api/rewards/exchange')
       .set('Authorization', `Bearer ${makeToken()}`)
@@ -181,6 +200,8 @@ describe('POST /api/rewards/exchange', () => {
   });
 
   it('returns 400 when karmaAmount is missing', async () => {
+    mockVerified();
+
     const res = await request(app)
       .post('/api/rewards/exchange')
       .set('Authorization', `Bearer ${makeToken()}`)
@@ -190,6 +211,7 @@ describe('POST /api/rewards/exchange', () => {
   });
 
   it('returns 422 when user has no linked wallet', async () => {
+    mockVerified();
     mockQueryOne.mockResolvedValueOnce({ karma_points: 500, wallet_address: null });
 
     const res = await request(app)
@@ -202,6 +224,7 @@ describe('POST /api/rewards/exchange', () => {
   });
 
   it('returns 422 when user has insufficient karma', async () => {
+    mockVerified();
     mockQueryOne.mockResolvedValueOnce({
       karma_points: 50,
       wallet_address: '0x1234567890123456789012345678901234567890',
@@ -222,6 +245,7 @@ describe('POST /api/rewards/exchange', () => {
       id: 'req-uuid', karma_amount: 100, token_amount: 10,
       status: 'pending', created_at: new Date().toISOString(),
     };
+    mockVerified();
     mockQueryOne.mockResolvedValueOnce({ karma_points: 500, wallet_address: wallet });
     mockTransaction.mockImplementation(async (cb) => {
       const client = {
@@ -247,6 +271,7 @@ describe('POST /api/rewards/exchange', () => {
       id: 'req-2', karma_amount: 200, token_amount: 20,
       status: 'pending', created_at: new Date().toISOString(),
     };
+    mockVerified();
     mockQueryOne.mockResolvedValueOnce({ karma_points: 1000, wallet_address: wallet });
     mockTransaction.mockImplementation(async (cb) => {
       const client = {

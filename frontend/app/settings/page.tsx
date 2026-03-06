@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Wallet } from 'lucide-react';
+import { Loader2, ShieldCheck, Wallet } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Layout } from '@/components/Layout';
 import { ConnectWalletButton } from '@/components/ConnectWalletButton';
+import { WorldIdVerify } from '@/components/WorldIdVerify';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 
@@ -142,6 +143,18 @@ export default function SettingsPage() {
             Save changes
           </button>
         </form>
+
+        {/* World ID Verification */}
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-primary-600" />
+            <h2 className="text-sm font-semibold text-gray-900">Identity verification</h2>
+          </div>
+          <p className="text-sm text-gray-500">
+            Verify with World ID to unlock donations and karma exchange. This proves you are a unique human without sharing personal data.
+          </p>
+          <WorldIdVerify />
+        </div>
 
         {/* Wallet */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">

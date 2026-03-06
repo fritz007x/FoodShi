@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { query, queryOne, transaction } from '../db/index';
 import { verifyJWT } from '../middleware/auth';
+import { requireVerified } from '../middleware/requireVerified';
 import { distanceKm } from '../lib/geo';
 import { recordKarma } from '../services/karma';
 
@@ -37,7 +38,7 @@ const ConfirmBody = z.object({
  * POST /api/donations
  * Create a new donation listing.
  */
-router.post('/', async (req: Request, res: Response): Promise<void> => {
+router.post('/', requireVerified, async (req: Request, res: Response): Promise<void> => {
   const parsed = CreateBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.errors[0].message });

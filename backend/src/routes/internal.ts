@@ -55,7 +55,8 @@ router.get('/daily-points', async (req: Request, res: Response): Promise<void> =
      JOIN users u ON dp.user_id = u.id
      WHERE dp.day_date = $1
        AND dp.synced_to_chain = false
-       AND u.wallet_address IS NOT NULL`,
+       AND u.wallet_address IS NOT NULL
+       AND u.is_verified_donor = TRUE`,
     [date]
   );
 

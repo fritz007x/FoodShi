@@ -6,6 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Star, ArrowRightLeft, Loader2, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Layout } from '@/components/Layout';
+import { VerificationGate } from '@/components/VerificationGate';
 import { useAuthStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
@@ -160,6 +161,7 @@ export default function RewardsPage() {
         </div>
 
         {/* ── Exchange form ── */}
+        <VerificationGate>
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-4">
           <div className="flex items-center gap-2">
             <ArrowRightLeft className="h-4 w-4 text-primary-600" />
@@ -215,6 +217,7 @@ export default function RewardsPage() {
             </div>
           )}
         </section>
+        </VerificationGate>
 
         {/* ── Medal tiers ── */}
         <section className="space-y-3">

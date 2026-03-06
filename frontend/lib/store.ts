@@ -16,6 +16,7 @@ export interface AuthUser {
   walletAddress: string | null;
   karmaPoints: number;
   avatarUrl: string | null;
+  isVerified: boolean;
 }
 
 interface AuthState {

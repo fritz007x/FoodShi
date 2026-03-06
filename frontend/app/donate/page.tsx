@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { MapPin, Loader2, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Layout } from '@/components/Layout';
+import { VerificationGate } from '@/components/VerificationGate';
 import { useGeolocationStore } from '@/lib/store';
 import api from '@/lib/api';
 
@@ -48,6 +49,8 @@ export default function DonatePage() {
   return (
     <Layout title="Donate Food">
       <div className="mx-auto max-w-lg space-y-6">
+
+        <VerificationGate>
 
         {/* Location card */}
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -128,6 +131,8 @@ export default function DonatePage() {
             <p className="text-center text-xs text-gray-400">Enable GPS above before listing</p>
           )}
         </form>
+
+        </VerificationGate>
 
       </div>
     </Layout>
