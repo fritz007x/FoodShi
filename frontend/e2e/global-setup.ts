@@ -11,7 +11,7 @@ let backendProcess: ChildProcess | null = null;
  * Returns a teardown function that Playwright calls after all tests finish.
  */
 export default async function globalSetup(_config: FullConfig): Promise<() => Promise<void>> {
-  if (await isReachable('http://localhost:3001/health')) {
+  if (await isReachable('http://127.0.0.1:3001/health')) {
     console.log('[e2e] Backend already running — skipping startup');
   } else {
     await startBackend();
@@ -49,7 +49,7 @@ async function startBackend(): Promise<void> {
     console.error('[e2e] Backend process error:', err.message);
   });
 
-  await waitForUrl('http://localhost:3001/health', 30_000);
+  await waitForUrl('http://127.0.0.1:3001/health', 30_000);
   console.log('[e2e] Backend ready');
 }
 

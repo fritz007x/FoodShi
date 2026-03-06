@@ -1,6 +1,6 @@
 import { BrowserContext, Browser, Page } from '@playwright/test';
 
-const API = 'http://localhost:3001/api';
+const API = 'http://127.0.0.1:3001/api';
 
 export interface TestUser {
   id: string;
