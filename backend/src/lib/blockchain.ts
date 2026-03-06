@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { markDaySynced } from '../services/karma';
 import { uploadMedalMetadata } from './pinata';
+export { MedalTier } from './medalTier';
 
 // ---------------------------------------------------------------------------
 // Minimal ABIs — only the functions the backend actually calls
@@ -31,17 +32,6 @@ const STAKING_ABI = [
   'function getMultiplier(address user) view returns (uint256)',
   'function isWithdrawalEligible(address user) view returns (bool)',
 ] as const;
-
-// ---------------------------------------------------------------------------
-// Medal tiers (matches MedalNFT.sol enum MedalTier)
-// ---------------------------------------------------------------------------
-
-export enum MedalTier {
-  Bronze   = 0,
-  Silver   = 1,
-  Gold     = 2,
-  Platinum = 3,
-}
 
 // ---------------------------------------------------------------------------
 // Lazy-initialised provider / signer

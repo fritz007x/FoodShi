@@ -1,5 +1,5 @@
 import { PinataSDK } from 'pinata';
-import { MedalTier } from './blockchain';
+import { MedalTier } from './medalTier';
 
 const TIER_NAMES: Record<MedalTier, string> = {
   [MedalTier.Bronze]:   'Bronze',
