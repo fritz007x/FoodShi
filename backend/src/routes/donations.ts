@@ -158,7 +158,7 @@ router.post('/:id/confirm', async (req: Request, res: Response): Promise<void> =
 
   // Confirm and award points atomically
   const updated = await transaction(async (client) => {
-    const [row] = await client.query(
+    const result = await client.query(
       `UPDATE donations
        SET status = 'confirmed',
            receiver_id = $1,
@@ -184,7 +184,7 @@ router.post('/:id/confirm', async (req: Request, res: Response): Promise<void> =
       [donation.donor_id]
     );
 
-    return row.rows[0];
+    return result.rows[0];
   });
 
   res.json({ donation: updated });

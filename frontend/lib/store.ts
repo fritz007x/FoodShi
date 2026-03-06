@@ -55,12 +55,21 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         isAuthenticated: !!(state.token && state.user),
       }),
-      onRehydrateStorage: () => () => {
-        useAuthStore.setState({ _hydrated: true });
-      },
     }
   )
 );
+
+// Mark store as hydrated once persist finishes restoring from localStorage.
+// This must happen after the store is created so useAuthStore is defined.
+if (typeof window !== 'undefined') {
+  useAuthStore.persist.onFinishHydration(() => {
+    useAuthStore.setState({ _hydrated: true });
+  });
+  // If hydration already completed synchronously before we registered
+  if (useAuthStore.persist.hasHydrated()) {
+    useAuthStore.setState({ _hydrated: true });
+  }
+}
 
 // ---------------------------------------------------------------------------
 // UI store — sidebar visibility and global loading state

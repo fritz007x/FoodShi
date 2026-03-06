@@ -70,7 +70,7 @@ test.describe('Donation lifecycle', () => {
     await page.goto('/donations');
 
     await expect(
-      page.getByText('Canned tomatoes x4 — browse page E2E test'),
+      page.getByText('Canned tomatoes x4 — browse page E2E test').first(),
     ).toBeVisible({ timeout: 10_000 });
   });
 
@@ -132,18 +132,18 @@ test.describe('Donation lifecycle', () => {
       // Use a regex so the assertion matches either the toast notification OR
       // the static confirmation banner rendered by the detail page component.
       await expect(
-        recipientPage.getByText(/Pickup confirmed!/),
+        recipientPage.getByText('Pickup confirmed!', { exact: true }),
       ).toBeVisible({ timeout: 15_000 });
 
       // The karma points banner is rendered when the API response includes a
       // non-zero points_awarded value (POINTS_DONOR = 100, always set by the
       // confirm endpoint).
       await expect(
-        recipientPage.getByText(/karma points awarded/i),
+        recipientPage.getByText('karma points awarded to donor.'),
       ).toBeVisible();
 
       // The status badge should now read "confirmed"
-      await expect(recipientPage.getByText('confirmed')).toBeVisible();
+      await expect(recipientPage.locator('span', { hasText: /^confirmed$/i })).toBeVisible();
     } finally {
       await recipientCtx.close();
     }
@@ -195,7 +195,7 @@ test.describe('Donation lifecycle', () => {
 
       // The backend rejects the request; the toast error must appear
       await expect(
-        recipientPage.getByText(/must be within/i),
+        recipientPage.getByRole('status').getByText(/must be within/i),
       ).toBeVisible({ timeout: 10_000 });
 
       // Donation remains pending
