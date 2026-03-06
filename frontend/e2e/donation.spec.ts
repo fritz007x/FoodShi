@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createUser, injectAuth, createAuthedContext, TestUser } from './helpers/auth';
-import { createDonation } from './helpers/api';
+import { createDonation, verifyUser } from './helpers/api';
 
 // ── Shared test coordinates ──────────────────────────────────────────────────
 // Both donor and recipient use the same coordinates so the 5 km geofence
@@ -25,6 +25,9 @@ test.describe('Donation lifecycle', () => {
   test.beforeAll(async () => {
     donor    = await createUser(uid('donor'),    PASSWORD, 'E2E Donor');
     recipient = await createUser(uid('recipient'), PASSWORD, 'E2E Recipient');
+    // Mark both users as World ID verified so donation creation/confirm works
+    await verifyUser(donor.token);
+    await verifyUser(recipient.token);
   });
 
   // ── 1. Create a donation via the UI ────────────────────────────────────────

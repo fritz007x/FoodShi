@@ -48,33 +48,39 @@ router.post('/verify', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  let verifyRes: globalThis.Response;
-  try {
-    verifyRes = await fetch(
-      `https://developer.worldcoin.org/api/v2/verify/${appId}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          merkle_root,
-          nullifier_hash,
-          proof,
-          action,
-          ...(verification_level ? { verification_level } : {}),
-        }),
-      }
-    );
-  } catch {
-    res.status(502).json({ error: 'Failed to reach World ID verification service' });
-    return;
-  }
+  // In staging mode, skip cloud verification (for demos and E2E tests).
+  // Production apps must use a real app_id from the Developer Portal.
+  const isStaging = appId.startsWith('app_staging_');
 
-  if (!verifyRes.ok) {
-    const body = await verifyRes.json().catch(() => ({}));
-    res.status(400).json({
-      error: (body as Record<string, string>).detail ?? 'World ID verification failed',
-    });
-    return;
+  if (!isStaging) {
+    let verifyRes: globalThis.Response;
+    try {
+      verifyRes = await fetch(
+        `https://developer.worldcoin.org/api/v2/verify/${appId}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            merkle_root,
+            nullifier_hash,
+            proof,
+            action,
+            ...(verification_level ? { verification_level } : {}),
+          }),
+        }
+      );
+    } catch {
+      res.status(502).json({ error: 'Failed to reach World ID verification service' });
+      return;
+    }
+
+    if (!verifyRes.ok) {
+      const body = await verifyRes.json().catch(() => ({}));
+      res.status(400).json({
+        error: (body as Record<string, string>).detail ?? 'World ID verification failed',
+      });
+      return;
+    }
   }
 
   // Store nullifier hash and mark as verified.

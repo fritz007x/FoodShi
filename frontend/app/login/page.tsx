@@ -42,6 +42,7 @@ export default function LoginPage() {
         walletAddress: null,
         karmaPoints:   0,
         avatarUrl:     null,
+        isVerified:    false,
       };
 
       setAuth(data.token, user);
@@ -73,6 +74,7 @@ export default function LoginPage() {
         walletAddress: null,
         karmaPoints:   0,
         avatarUrl:     null,
+        isVerified:    false,
       };
 
       setAuth(data.token, user);

@@ -44,6 +44,7 @@ export default function SignupPage() {
         walletAddress: null,
         karmaPoints:   0,
         avatarUrl:     null,
+        isVerified:    false,
       };
 
       setAuth(data.token, user);
@@ -82,6 +83,7 @@ export default function SignupPage() {
         walletAddress: null,
         karmaPoints:   0,
         avatarUrl:     null,
+        isVerified:    false,
       };
 
       setAuth(data.token, user);

@@ -92,6 +92,7 @@ function buildAuthStorage(user: TestUser): string {
         walletAddress: null,
         karmaPoints: 0,
         avatarUrl: null,
+        isVerified: true,
       },
       isAuthenticated: true,
     },

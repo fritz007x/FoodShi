@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { timingSafeEqual } from 'crypto';
-import { query } from '../db/index';
+import { query, queryOne } from '../db/index';
 
 const router = Router();
 
@@ -66,6 +66,32 @@ router.get('/daily-points', async (req: Request, res: Response): Promise<void> =
   }));
 
   res.json({ date, users });
+});
+
+/**
+ * POST /api/internal/verify-user
+ * Marks a user as World ID verified. Used by E2E tests and admin tooling.
+ * Body: { userId: string }
+ */
+router.post('/verify-user', async (req: Request, res: Response): Promise<void> => {
+  const { userId } = req.body ?? {};
+  if (!userId || typeof userId !== 'string') {
+    res.status(400).json({ error: 'Missing userId in request body' });
+    return;
+  }
+
+  const user = await queryOne(
+    `UPDATE users SET is_verified_donor = TRUE, worldid_verified_at = NOW()
+     WHERE id = $1 RETURNING id`,
+    [userId]
+  );
+
+  if (!user) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  res.json({ verified: true });
 });
 
 export default router;
