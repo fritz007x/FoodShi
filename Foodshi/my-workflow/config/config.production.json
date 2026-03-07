@@ -1,0 +1,5 @@
+{
+  "backendUrl": "https://your-production-backend.com",
+  "emissionPoolReceiverAddress": "0x0000000000000000000000000000000000000000",
+  "chainId": 80002
+}

@@ -1,0 +1,5 @@
+{
+  "backendUrl": "http://localhost:3001",
+  "emissionPoolReceiverAddress": "0x0000000000000000000000000000000000000000",
+  "chainId": 80002
+}

@@ -48,9 +48,13 @@ async function main() {
   // 6. Deploy EmissionPoolReceiver
   console.log("\n6. Deploying EmissionPoolReceiver...");
   const EmissionPoolReceiver = await ethers.getContractFactory("EmissionPoolReceiver");
+  const forwarderAddress = process.env.CRE_FORWARDER_ADDRESS || deployer.address;
+  if (!process.env.CRE_FORWARDER_ADDRESS) {
+    console.log("  (CRE_FORWARDER_ADDRESS not set, using deployer as placeholder)");
+  }
   const receiver = await EmissionPoolReceiver.deploy(
     emissionPoolAddress,
-    process.env.CRE_FORWARDER_ADDRESS!
+    forwarderAddress
   );
   await receiver.waitForDeployment();
   const receiverAddress = await receiver.getAddress();

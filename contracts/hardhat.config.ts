@@ -1,11 +1,9 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
-import * as tdly from "@tenderly/hardhat-tenderly";
+import "@tenderly/hardhat-tenderly";
 import * as dotenv from "dotenv";
 
 dotenv.config({ path: "../.env" });
-
-tdly.setup({ automaticVerifications: true });
 
 // Dummy key so compile/test work without .env; real key required only at deploy time
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x" + "00".repeat(32);
