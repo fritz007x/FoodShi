@@ -27,11 +27,15 @@ const FEATURES = [
 export default function LandingPage() {
   const router          = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const hydrated        = useAuthStore((s) => s._hydrated);
 
   useEffect(() => {
-    if (isAuthenticated) router.replace('/feed');
-  }, [isAuthenticated, router]);
+    if (hydrated && isAuthenticated) router.replace('/feed');
+  }, [hydrated, isAuthenticated, router]);
 
+  // Wait for Zustand to rehydrate from localStorage before deciding what to
+  // render — prevents server/client mismatch (server always has false).
+  if (!hydrated) return null;
   if (isAuthenticated) return null;
 
   return (

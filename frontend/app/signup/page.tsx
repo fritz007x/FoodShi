@@ -12,7 +12,7 @@ import { firebaseAuth, googleProvider } from '@/lib/firebase';
 
 export default function SignupPage() {
   const router          = useRouter();
-  const { setAuth, isAuthenticated } = useAuthStore();
+  const { setAuth, isAuthenticated, _hydrated: hydrated } = useAuthStore();
 
   const [name,     setName]     = useState('');
   const [email,    setEmail]    = useState('');
@@ -21,10 +21,10 @@ export default function SignupPage() {
   const [loading,  setLoading]  = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  // Already logged in → go straight to the app
+  // Already logged in → go straight to the app (wait for hydration first)
   useEffect(() => {
-    if (isAuthenticated) router.replace('/feed');
-  }, [isAuthenticated, router]);
+    if (hydrated && isAuthenticated) router.replace('/feed');
+  }, [hydrated, isAuthenticated, router]);
 
   async function handleGoogleSignIn() {
     setGoogleLoading(true);
