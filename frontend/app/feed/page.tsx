@@ -290,7 +290,7 @@ function PostCard({
         {isOwn && (
           <button
             onClick={onDelete}
-            className="p-1.5 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition"
+            className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition"
             aria-label="Delete post"
           >
             <Trash2 className="h-4 w-4" />

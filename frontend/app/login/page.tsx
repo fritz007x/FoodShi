@@ -30,7 +30,7 @@ export default function LoginPage() {
       const result = await signInWithPopup(firebaseAuth, googleProvider);
       const idToken = await result.user.getIdToken();
 
-      const { data } = await api.post<{ token: string; user: { id: string; email: string } }>(
+      const { data } = await api.post<{ token: string; user: { id: string; email: string; name: string | null } }>(
         '/auth/firebase',
         { idToken }
       );
@@ -38,7 +38,7 @@ export default function LoginPage() {
       const user: AuthUser = {
         id:            data.user.id,
         email:         data.user.email,
-        username:      data.user.email.split('@')[0],
+        username:      data.user.name ?? result.user.displayName ?? data.user.email.split('@')[0],
         walletAddress: null,
         karmaPoints:   0,
         avatarUrl:     null,
@@ -62,7 +62,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const { data } = await api.post<{ token: string; user: { id: string; email: string } }>(
+      const { data } = await api.post<{ token: string; user: { id: string; email: string; name: string | null } }>(
         '/auth/login',
         { email, password }
       );
@@ -70,7 +70,7 @@ export default function LoginPage() {
       const user: AuthUser = {
         id:            data.user.id,
         email:         data.user.email,
-        username:      data.user.email.split('@')[0],
+        username:      data.user.name ?? data.user.email.split('@')[0],
         walletAddress: null,
         karmaPoints:   0,
         avatarUrl:     null,

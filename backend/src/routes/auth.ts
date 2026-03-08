@@ -43,15 +43,15 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  const [user] = await query<{ id: string; email: string }>(
+  const [user] = await query<{ id: string; email: string; name: string | null }>(
     `INSERT INTO users (email, password_hash, name)
      VALUES ($1, $2, $3)
-     RETURNING id, email`,
+     RETURNING id, email, name`,
     [email, passwordHash, name ?? null]
   );
 
   const token = signToken({ userId: user.id, email: user.email });
-  res.status(201).json({ token, user: { id: user.id, email: user.email } });
+  res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name } });
 });
 
 /**
@@ -67,8 +67,8 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 
   const { email, password } = parsed.data;
 
-  const user = await queryOne<{ id: string; email: string; password_hash: string | null }>(
-    'SELECT id, email, password_hash FROM users WHERE email = $1',
+  const user = await queryOne<{ id: string; email: string; name: string | null; password_hash: string | null }>(
+    'SELECT id, email, name, password_hash FROM users WHERE email = $1',
     [email]
   );
 
@@ -84,7 +84,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
   }
 
   const token = signToken({ userId: user.id, email: user.email });
-  res.json({ token, user: { id: user.id, email: user.email } });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
 });
 
 /**
@@ -117,27 +117,30 @@ router.post('/firebase', async (req: Request, res: Response): Promise<void> => {
   }
 
   // Try to find existing user by firebase_uid first, then by email
-  let user = await queryOne<{ id: string; email: string }>(
-    'SELECT id, email FROM users WHERE firebase_uid = $1',
+  let user = await queryOne<{ id: string; email: string; name: string | null }>(
+    'SELECT id, email, name FROM users WHERE firebase_uid = $1',
     [uid]
   );
 
   if (!user) {
-    const byEmail = await queryOne<{ id: string; email: string }>(
-      'SELECT id, email FROM users WHERE email = $1',
+    const byEmail = await queryOne<{ id: string; email: string; name: string | null }>(
+      'SELECT id, email, name FROM users WHERE email = $1',
       [email]
     );
 
     if (byEmail) {
-      // Link firebase_uid to an existing email/password account
-      await query('UPDATE users SET firebase_uid = $1 WHERE id = $2', [uid, byEmail.id]);
-      user = byEmail;
+      // Link firebase_uid to an existing email/password account; backfill name if missing
+      await query(
+        `UPDATE users SET firebase_uid = $1, name = COALESCE(name, $3) WHERE id = $2`,
+        [uid, byEmail.id, name ?? null]
+      );
+      user = { ...byEmail, name: byEmail.name ?? name ?? null };
     } else {
       // New user — create account
-      const [created] = await query<{ id: string; email: string }>(
+      const [created] = await query<{ id: string; email: string; name: string | null }>(
         `INSERT INTO users (email, firebase_uid, name)
          VALUES ($1, $2, $3)
-         RETURNING id, email`,
+         RETURNING id, email, name`,
         [email, uid, name ?? null]
       );
       user = created;
@@ -145,7 +148,7 @@ router.post('/firebase', async (req: Request, res: Response): Promise<void> => {
   }
 
   const token = signToken({ userId: user.id, email: user.email });
-  res.json({ token, user: { id: user.id, email: user.email } });
+  res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
 });
 
 /**
