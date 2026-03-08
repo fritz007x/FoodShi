@@ -1,6 +1,5 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
-import "@tenderly/hardhat-tenderly";
 import * as dotenv from "dotenv";
 
 dotenv.config({ path: "../.env" });
@@ -49,10 +48,12 @@ const config: HardhatUserConfig = {
   etherscan: {
     apiKey: ETHERSCAN_API_KEY,
   },
-  tenderly: {
-    project: process.env.TENDERLY_PROJECT || "foodshi",
-    username: process.env.TENDERLY_USERNAME || "",
-  },
+  ...(process.env.TENDERLY_USERNAME ? {
+    tenderly: {
+      project: process.env.TENDERLY_PROJECT || "foodshi",
+      username: process.env.TENDERLY_USERNAME,
+    },
+  } : {}),
   gasReporter: {
     enabled: true,
     currency: "USD",

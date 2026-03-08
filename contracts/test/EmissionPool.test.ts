@@ -265,6 +265,9 @@ describe("Treasury Security (ETH Limits)", function () {
     const GOVERNOR_ROLE = await treasury.GOVERNOR_ROLE();
     await treasury.grantRole(GOVERNOR_ROLE, governor.address);
 
+    // Allowlist the recipient
+    await treasury.setAllowlistedRecipient(recipient.address, true);
+
     // Send ETH to treasury
     await owner.sendTransaction({
       to: await treasury.getAddress(),

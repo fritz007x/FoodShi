@@ -1,4 +1,16 @@
-import { cre, Runner, type Runtime, type HTTPPayload, decodeJson } from "@chainlink/cre-sdk";
+import {
+  cre,
+  Runner,
+  type Runtime,
+  type HTTPPayload,
+  HTTPClient,
+  EVMClient,
+  decodeJson,
+  json,
+  ok,
+  prepareReportRequest,
+} from "@chainlink/cre-sdk";
+import { encodeAbiParameters } from "viem";
 import type { Config, DailyPointsResponse } from "./types/types";
 
 /**
@@ -6,10 +18,13 @@ import type { Config, DailyPointsResponse } from "./types/types";
  *
  * Trigger: HTTP (called daily by cron or manually)
  * Input:   { "date": "YYYY-MM-DD", "apiKey": "..." }
- * Flow:    1. Fetch daily points from backend API
- *          2. ABI-encode users, points, and day
- *          3. Write on-chain to EmissionPoolReceiver.onReport()
+ * Flow:    1. Each node fetches daily points from backend API
+ *          2. Consensus aggregates the result
+ *          3. ABI-encode report and write on-chain via CRE forwarder
+ *             → EmissionPoolReceiver.onReport(metadata, report)
  */
+
+const CHAIN_SELECTOR = EVMClient.SUPPORTED_CHAIN_SELECTORS["polygon-testnet-amoy"];
 
 const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload): string => {
   const input = decodeJson(payload.input) as { date: string; apiKey: string };
@@ -23,58 +38,68 @@ const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload): string =
 
   runtime.log(`Fetching daily points for ${input.date}`);
 
-  // Fetch daily points from backend internal API
-  const http = new cre.capabilities.HTTPCapability();
-  const response = http.fetch(`${runtime.config.backendUrl}/api/internal/daily-points?date=${input.date}`, {
-    method: "GET",
-    headers: {
-      "Authorization": `Bearer ${input.apiKey}`,
-      "Content-Type": "application/json",
-    },
-  });
+  // Each node fetches from the backend, consensus aggregates
+  const httpClient = new HTTPClient();
+  const fetchPoints = httpClient.sendRequest(runtime, (sendRequester) => {
+    const response = sendRequester.sendRequest({
+      url: `${runtime.config.backendUrl}/api/internal/daily-points?date=${input.date}`,
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${input.apiKey}`,
+        "Content-Type": "application/json",
+      },
+    }).result();
 
-  const data = JSON.parse(response) as DailyPointsResponse;
+    if (!ok(response)) {
+      throw new Error(`Backend API returned status ${response.statusCode}`);
+    }
+
+    return json(response) as DailyPointsResponse;
+  }, { mode: "MEDIAN" });
+
+  const data = fetchPoints().result();
 
   if (!data.users || data.users.length === 0) {
     runtime.log(`No unsynced points found for ${input.date}`);
-    return JSON.stringify({ date: input.date, status: "no_data", usersProcessed: 0 });
+    return "no_data";
   }
 
   runtime.log(`Found ${data.users.length} users with unsynced points`);
 
   // Prepare arrays for on-chain call
-  const users = data.users.map(u => u.walletAddress);
-  const points = data.users.map(u => u.points);
+  const users = data.users.map((u) => u.walletAddress as `0x${string}`);
+  const points = data.users.map((u) => BigInt(u.points));
 
   // Convert date to day number (days since Unix epoch)
   const dayTimestamp = Math.floor(new Date(input.date).getTime() / 1000);
-  const day = Math.floor(dayTimestamp / 86400);
+  const day = BigInt(Math.floor(dayTimestamp / 86400));
 
   runtime.log(`Encoding report: ${users.length} users, day=${day}`);
 
-  // ABI-encode the report payload: (address[] users, uint256[] points, uint256 day)
-  const report = cre.abi.encode(
-    ["address[]", "uint256[]", "uint256"],
+  // ABI-encode the report payload: abi.encode(address[], uint256[], uint256)
+  // This matches what EmissionPoolReceiver.onReport decodes from the `report` param
+  const encodedReport = encodeAbiParameters(
+    [
+      { type: "address[]" },
+      { type: "uint256[]" },
+      { type: "uint256" },
+    ],
     [users, points, day]
   );
 
-  // Write on-chain to EmissionPoolReceiver
-  const chain = new cre.capabilities.ChainWriteCapability();
-  chain.write({
-    chainId: runtime.config.chainId,
-    contractAddress: runtime.config.emissionPoolReceiverAddress,
-    method: "onReport(bytes,bytes)",
-    params: ["0x", report], // metadata is empty, report contains the encoded data
+  // Create a signed report for the CRE forwarder
+  const reportRequest = prepareReportRequest(encodedReport);
+  const report = runtime.report(reportRequest).result();
+
+  // Write on-chain — CRE forwarder will call EmissionPoolReceiver.onReport(metadata, report)
+  const evmClient = new EVMClient(CHAIN_SELECTOR);
+  evmClient.writeReport(runtime, {
+    receiver: runtime.config.emissionPoolReceiverAddress,
+    report,
   });
 
   runtime.log(`On-chain write submitted for day ${day}`);
-
-  return JSON.stringify({
-    date: input.date,
-    day,
-    status: "submitted",
-    usersProcessed: users.length,
-  });
+  return "submitted";
 };
 
 const initWorkflow = (config: Config) => {
