@@ -5,13 +5,15 @@ import { useRouter } from 'next/navigation';
 import { MapPin, Loader2, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Layout } from '@/components/Layout';
-import { VerificationGate } from '@/components/VerificationGate';
+import { WorldIdVerify } from '@/components/WorldIdVerify';
 import { ImageUpload } from '@/components/ImageUpload';
-import { useGeolocationStore } from '@/lib/store';
+import { useAuthStore, useGeolocationStore } from '@/lib/store';
 import api from '@/lib/api';
 
 export default function DonatePage() {
   const router = useRouter();
+  const { user } = useAuthStore();
+  const isVerified = user?.isVerified ?? false;
   const { position, loading: gpsLoading, error: gpsError, requestLocation } = useGeolocationStore();
 
   const [description, setDescription] = useState('');
@@ -51,7 +53,14 @@ export default function DonatePage() {
     <Layout title="Donate Food">
       <div className="mx-auto max-w-lg space-y-6">
 
-        <VerificationGate>
+        {!isVerified && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+            <p className="text-sm font-medium text-amber-800">
+              World ID verification required to list donations.
+            </p>
+            <WorldIdVerify />
+          </div>
+        )}
 
         {/* Location card */}
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -115,7 +124,7 @@ export default function DonatePage() {
 
           <button
             type="submit"
-            disabled={submitting || !position}
+            disabled={submitting || !position || !isVerified}
             className="w-full rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 active:bg-primary-800 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {submitting ? 'Listing…' : 'List donation'}
@@ -124,9 +133,10 @@ export default function DonatePage() {
           {!position && (
             <p className="text-center text-xs text-gray-400">Enable GPS above before listing</p>
           )}
+          {!isVerified && (
+            <p className="text-center text-xs text-amber-600">Verify with World ID above to submit</p>
+          )}
         </form>
-
-        </VerificationGate>
 
       </div>
     </Layout>

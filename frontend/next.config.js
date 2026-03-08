@@ -6,6 +6,7 @@ const nextConfig = {
       { hostname: 'ipfs.io' },
       { hostname: 'gateway.pinata.cloud' },
       { hostname: 'avatars.githubusercontent.com' },
+      { hostname: 'res.cloudinary.com' },
     ],
   },
   webpack: (config) => {
