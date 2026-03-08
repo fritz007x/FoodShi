@@ -59,6 +59,46 @@ test.describe('Donation lifecycle', () => {
     await expect(page.getByText('pending')).toBeVisible();
   });
 
+  // ── 1b. Create a donation with a photo upload ─────────────────────────────
+
+  test('donor can upload a photo when creating a donation', async ({ page, context }) => {
+    await context.setGeolocation(COORDS);
+    await injectAuth(page, donor);
+    await page.goto('/donate');
+
+    // Enable GPS
+    await page.getByRole('button', { name: /enable gps/i }).click();
+    await expect(page.getByText(/48\.85/)).toBeVisible({ timeout: 10_000 });
+
+    await page.getByLabel(/description/i).fill(
+      'Fresh apples with photo — image upload E2E test',
+    );
+
+    // The upload dropzone should be visible
+    await expect(page.getByText(/click or drag a photo/i)).toBeVisible();
+
+    // Simulate file selection via the hidden input
+    const fileInput = page.locator('input[type="file"]');
+    await fileInput.setInputFiles({
+      name: 'apple.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+        'base64',
+      ),
+    });
+
+    // After upload completes, a preview image and remove button should appear
+    await expect(page.getByAltText(/upload preview/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: /remove image/i })).toBeVisible();
+
+    await page.getByRole('button', { name: /list donation/i }).click();
+
+    // On success the app redirects to the detail page
+    await expect(page).toHaveURL(/\/donations\/[0-9a-f-]+$/, { timeout: 10_000 });
+    await expect(page.getByText('Fresh apples with photo')).toBeVisible();
+  });
+
   // ── 2. Listing appears on the browse page ──────────────────────────────────
 
   test('created donation appears in the pending donations list', async ({ page }) => {

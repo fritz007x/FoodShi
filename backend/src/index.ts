@@ -14,6 +14,7 @@ import invitationRoutes from './routes/invitations';
 import contributionRoutes from './routes/contributions';
 import internalRoutes from './routes/internal';
 import worldidRoutes from './routes/worldid';
+import uploadRoutes from './routes/uploads';
 import { errorHandler } from './middleware/errorHandler';
 import { initScheduler } from './jobs/scheduler';
 
@@ -48,6 +49,7 @@ app.use('/api/invitations', invitationRoutes);
 app.use('/api/contributions', contributionRoutes);
 app.use('/api/internal', internalRoutes);
 app.use('/api/worldid', worldidRoutes);
+app.use('/api/uploads', uploadRoutes);
 
 // Error handling
 app.use(errorHandler);

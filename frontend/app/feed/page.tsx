@@ -5,9 +5,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
-import { Heart, Trash2, Loader2, ImageIcon, Send } from 'lucide-react';
+import { Heart, Trash2, Loader2, Camera, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Layout } from '@/components/Layout';
+import { ImageUpload } from '@/components/ImageUpload';
 import { useAuthStore } from '@/lib/store';
 import { cn, getSafeImageUrl } from '@/lib/utils';
 import api from '@/lib/api';
@@ -163,22 +164,16 @@ export default function FeedPage() {
           />
 
           {showImg && (
-            <input
-              type="url"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="Image URL (optional)"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
-            />
+            <ImageUpload value={imageUrl} onUpload={(url) => { setImageUrl(url); if (!url) setShowImg(false); }} />
           )}
 
           <div className="flex items-center justify-between">
             <button
               type="button"
-              onClick={() => setShowImg((v) => !v)}
+              onClick={() => { setShowImg((v) => !v); if (showImg) setImageUrl(''); }}
               className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition"
             >
-              <ImageIcon className="h-3.5 w-3.5" />
+              <Camera className="h-3.5 w-3.5" />
               {showImg ? 'Remove image' : 'Add image'}
             </button>
 
