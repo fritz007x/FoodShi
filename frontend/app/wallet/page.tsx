@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
 import { Loader2, Shield, ShieldCheck, Lock, AlertTriangle } from 'lucide-react';
@@ -104,36 +104,54 @@ function StakingCard({ address }: { address: `0x${string}` }) {
   });
 
   // Write contracts
-  const { writeContract: approve, data: approveTxHash, isPending: approving } = useWriteContract();
+  const { writeContract: approve, data: approveTxHash, isPending: approving, reset: resetApprove } = useWriteContract();
   const { writeContract: stakeWrite, data: stakeTxHash, isPending: staking } = useWriteContract();
   const { writeContract: unstakeWrite, data: unstakeTxHash, isPending: unstaking } = useWriteContract();
   const { writeContract: activateSuper, data: superTxHash, isPending: activatingSuper } = useWriteContract();
 
+  // Track the amount to stake after approval is confirmed
+  const pendingStakeAmount = useRef<bigint | null>(null);
+
   // Wait for txs
-  const { isLoading: waitingApprove } = useWaitForTransactionReceipt({
+  const { isLoading: waitingApprove, isSuccess: approveConfirmed } = useWaitForTransactionReceipt({
     hash: approveTxHash,
-    query: {
-      enabled: !!approveTxHash,
-    },
+    query: { enabled: !!approveTxHash },
   });
   const { isLoading: waitingStake } = useWaitForTransactionReceipt({
     hash: stakeTxHash,
-    query: {
-      enabled: !!stakeTxHash,
-    },
+    query: { enabled: !!stakeTxHash },
   });
   const { isLoading: waitingUnstake } = useWaitForTransactionReceipt({
     hash: unstakeTxHash,
-    query: {
-      enabled: !!unstakeTxHash,
-    },
+    query: { enabled: !!unstakeTxHash },
   });
   const { isLoading: waitingSuper } = useWaitForTransactionReceipt({
     hash: superTxHash,
-    query: {
-      enabled: !!superTxHash,
-    },
+    query: { enabled: !!superTxHash },
   });
+
+  // Once approval is mined, fire the stake transaction
+  useEffect(() => {
+    if (approveConfirmed && pendingStakeAmount.current !== null) {
+      const amount = pendingStakeAmount.current;
+      pendingStakeAmount.current = null;
+      toast.success('Approval confirmed — now staking…');
+      refetchAllowance();
+      stakeWrite(
+        {
+          address: STAKING_ADDRESS!,
+          abi: stakingAbi,
+          functionName: 'stake',
+          args: [amount],
+        },
+        {
+          onSuccess: () => { toast.success('Staked!'); setStakeAmount(''); refetchAll(); },
+          onError: (err) => toast.error(err.message.slice(0, 100)),
+        },
+      );
+      resetApprove();
+    }
+  }, [approveConfirmed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stakedAmount = stakeInfo ? stakeInfo.amount : 0n;
   const isSuperDonor = stakeInfo?.isSuperDonor ?? false;
@@ -152,6 +170,7 @@ function StakingCard({ address }: { address: `0x${string}` }) {
 
     // Check if approval is needed
     if ((allowance ?? 0n) < amount) {
+      pendingStakeAmount.current = amount;
       approve(
         {
           address: SHARE_TOKEN_ADDRESS!,
@@ -160,24 +179,7 @@ function StakingCard({ address }: { address: `0x${string}` }) {
           args: [STAKING_ADDRESS!, amount],
         },
         {
-          onSuccess: () => {
-            toast.success('Approval confirmed — now staking…');
-            refetchAllowance();
-            // Now stake
-            stakeWrite(
-              {
-                address: STAKING_ADDRESS!,
-                abi: stakingAbi,
-                functionName: 'stake',
-                args: [amount],
-              },
-              {
-                onSuccess: () => { toast.success('Staked!'); setStakeAmount(''); refetchAll(); },
-                onError: (err) => toast.error(err.message.slice(0, 100)),
-              },
-            );
-          },
-          onError: (err) => toast.error(err.message.slice(0, 100)),
+          onError: (err) => { pendingStakeAmount.current = null; toast.error(err.message.slice(0, 100)); },
         },
       );
     } else {
