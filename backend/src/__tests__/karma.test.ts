@@ -18,7 +18,7 @@ function makeMockClient() {
 }
 
 describe('awardKarma', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); });
 
   it('writes to daily_points, users, and karma_transactions', async () => {
     const client = makeMockClient();
@@ -44,7 +44,7 @@ describe('awardKarma', () => {
 });
 
 describe('deductKarma', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); });
 
   it('does NOT write to daily_points (penalties are not emitted on-chain)', async () => {
     const client = makeMockClient();
@@ -70,7 +70,7 @@ describe('deductKarma', () => {
 });
 
 describe('getPendingEmissionPoints', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); });
 
   it('returns 0 when no unsynced row exists for today', async () => {
     mockQueryOne.mockResolvedValue(null);
@@ -91,7 +91,7 @@ describe('getPendingEmissionPoints', () => {
 });
 
 describe('getKarmaHistory', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); });
 
   it('returns query results', async () => {
     const rows = [{ id: 'tx-1', amount: 100, transaction_type: 'donation_given' }];

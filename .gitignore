@@ -38,6 +38,14 @@ coverage/
 .DS_Store
 Thumbs.db
 
+# Playwright
+playwright-report/
+test-results/
+
+# Slither
+slither-reports/
+
 # Misc
 *.pem
+*.tsbuildinfo
 .vercel

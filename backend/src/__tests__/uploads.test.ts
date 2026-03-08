@@ -9,18 +9,15 @@ vi.mock('cloudinary', () => {
   return {
     v2: {
       config: vi.fn(),
-      uploader: {
-        upload_stream: uploadStream,
-      },
+      uploader: { upload_stream: uploadStream },
     },
-    __uploadStream: uploadStream,
   };
 });
 
 import uploadsRouter from '../routes/uploads';
-import { __uploadStream } from 'cloudinary';
+import { v2 } from 'cloudinary';
 
-const mockUploadStream = vi.mocked(__uploadStream as unknown as ReturnType<typeof vi.fn>);
+const mockUploadStream = vi.mocked(v2.uploader.upload_stream);
 
 const JWT_SECRET = 'test-secret';
 const USER_ID = 'user-uuid';

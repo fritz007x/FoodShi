@@ -1,8 +1,13 @@
 # FOODSHI — Web3 Food Donation Platform
 
-Turn surplus food into on-chain rewards. Donors list food, neighbours confirm
-pickup via GPS, both earn **Karma Points** which exchange for **$SHARE** ERC-20
-tokens. Hit donation milestones to mint **NFT medals** on Polygon Amoy.
+**Turn surplus food into on-chain rewards.**
+
+Donors list food they want to share, neighbours confirm pickup via GPS, and both
+earn **Karma Points** that exchange for **$SHARE** ERC-20 tokens. Hit donation
+milestones to mint **NFT medals** (Bronze through Platinum) on Polygon.
+
+Built for the hackathon with a full-stack monorepo: Solidity smart contracts,
+Express API, and a Next.js frontend — all wired to the **Polygon Amoy** testnet.
 
 ---
 
@@ -24,7 +29,7 @@ foodshi/
 │   └── src/
 │       ├── db/schema.sql
 │       ├── routes/      auth, users, donations, posts, rewards,
-│       │                reports, invitations, internal
+│       │                reports, invitations, internal, worldid, uploads
 │       ├── services/    karma.ts
 │       ├── lib/         blockchain.ts, pinata.ts, geo.ts, firebase.ts
 │       ├── middleware/  auth.ts (JWT)
@@ -38,6 +43,7 @@ foodshi/
 │   │   ├── donate/                   Create donation
 │   │   ├── donations/[id]/           Donation detail + confirm
 │   │   ├── rewards/                  Karma, exchange, medals
+│   │   ├── wallet/                   Connect wallet, stake, Super Donor
 │   │   ├── leaderboard/
 │   │   ├── profile/[id]/
 │   │   └── settings/
@@ -61,7 +67,7 @@ foodshi/
 | Challenge period | 24 h per listing |
 | Fraud strikes before slash | 3 → 50 % stake to Treasury |
 | Daily $SHARE emission | 1,000 $SHARE / day |
-| Super Donor stake | 500 $SHARE → 1.5× multiplier |
+| Super Donor stake | 500 $SHARE → 1.5x multiplier |
 
 ### Medal tiers
 
@@ -100,6 +106,21 @@ Chainlink CRE setup, contract verification, and production hosting.
 
 ---
 
+## Running tests
+
+```bash
+# Backend unit + integration tests
+cd backend && npx vitest
+
+# Contract tests (Hardhat in-process node)
+cd contracts && npx hardhat test
+
+# Frontend E2E (Playwright)
+cd frontend && npx playwright test
+```
+
+---
+
 ## API overview
 
 | Method | Path | Description |
@@ -123,6 +144,8 @@ Chainlink CRE setup, contract verification, and production hosting.
 | GET | `/api/rewards/karma` | Balance + history |
 | GET | `/api/rewards/medals` | Progress per tier |
 | POST | `/api/rewards/exchange` | Karma → $SHARE request |
+| POST | `/api/worldid/verify` | World ID sybil check |
+| POST | `/api/uploads/image` | Cloudinary image upload |
 | GET | `/api/internal/daily-points` | Chainlink CRE endpoint |
 
 ---
@@ -131,11 +154,11 @@ Chainlink CRE setup, contract verification, and production hosting.
 
 | Layer | Tech |
 |-------|------|
-| Contracts | Solidity ^0.8.20, Hardhat, OpenZeppelin, Chainlink CRE |
+| Contracts | Solidity ^0.8.28, Hardhat, OpenZeppelin, Chainlink CRE |
 | Backend | Node.js 18, Express, TypeScript, PostgreSQL, ethers.js v6 |
 | Frontend | Next.js 14, TailwindCSS, wagmi v2, RainbowKit v2, Zustand |
-| Auth | JWT (7-day), optional Firebase |
-| IPFS | Pinata (medal NFT metadata) |
+| Auth | JWT (7-day), optional Firebase, World ID |
+| Images | Cloudinary (donations/posts), Pinata/IPFS (medal NFT metadata) |
 | Network | Polygon Amoy testnet |
 
 ---

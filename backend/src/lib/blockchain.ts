@@ -1,7 +1,8 @@
 import { ethers } from 'ethers';
 import { markDaySynced } from '../services/karma';
 import { uploadMedalMetadata } from './pinata';
-export { MedalTier } from './medalTier';
+import { MedalTier } from './medalTier';
+export { MedalTier };
 
 // ---------------------------------------------------------------------------
 // Minimal ABIs — only the functions the backend actually calls
